@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fixing Good 3D</title>
+<meta name="description" content="Fixing Good 3D: a third-person desert crime shooter. Cook, trade and shoot your way across the county in a beat-up RV.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #050505; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  #game { position: fixed; inset: 0; }
+  #ui { position: absolute; pointer-events: none; z-index: 2; }
+  #gl { z-index: 1; }
+  #gl { display: block; cursor: none; }
+</style>
+</head>
+<body>
+<div id="game"><canvas id="ui"></canvas></div>
+<!--BUNDLE-->
+</body>
+</html>
