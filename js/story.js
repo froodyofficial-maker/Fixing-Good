@@ -215,8 +215,8 @@ const LEVELS = {
       { cine: false, arena: [0, 2700], objective: 'Defend Walter while he cooks', music: 'action', do: lv => { lv.vars.cookT = 0; } },
       { spawn: [{ t: 'smg', x: 60 }, { t: 'gunner', x: 2640 }, { t: 'rifleman', x: 2600 }] }, { clear: true },
       { spawn: [{ t: 'shotgunner', x: 40 }, { t: 'smg', x: 80 }, { t: 'rifleman', x: 2650, y: GROUND - 160 }, { t: 'gunner', x: 2600 }] }, { clear: true }, { cp: true },
-      { banter: ['walter', 'Halfway there! Keep them OFF me!'], spawn: [{ t: 'heavy', x: 2650 }, { t: 'rifleman', x: 40 }, { t: 'smg', x: 2600 }, { t: 'smg', x: 60 }] }, { clear: true }, { cp: true },
-      { spawn: [{ t: 'heavy', x: 40 }, { t: 'shotgunner', x: 2640 }, { t: 'rifleman', x: 380, y: GROUND - 160 }, { t: 'rifleman', x: 2200, y: GROUND - 160 }, { t: 'gunner', x: 2600 }] }, { clear: true },
+      { banter: ['walter', 'Halfway there! Keep them OFF me!'], spawn: [{ t: 'heavy', x: 2650 }, { t: 'smg', x: 60 }] }, { wait: 5 }, { spawn: [{ t: 'rifleman', x: 40 }, { t: 'smg', x: 2600 }] }, { clear: true }, { cp: true }, { do: lv => { lv.pickups.push({ x: lv.player.x, y: GROUND - 200, vy: 0, kind: 'med' }); lv.banter('walter', 'There\'s a first-aid kit by the vent. Take it.'); } },
+      { spawn: [{ t: 'heavy', x: 40 }, { t: 'shotgunner', x: 2640 }, { t: 'rifleman', x: 2200, y: GROUND - 160 }] }, { wait: 6 }, { spawn: [{ t: 'rifleman', x: 380, y: GROUND - 160 }, { t: 'gunner', x: 2600 }] }, { clear: true },
       { wait: 1, cine: true },
       { say: [S('walter', 'Done. Batch forty. Ninety-nine point one.', 'smile'), S('jace', 'Dude. You just cooked through a GUNFIGHT.', 'smile'), S('walter', 'And Mr. Fenn will want to know who sent them. He\'ll want to send a message back.'), S('fenn', '(entering) I already know who sent them. Don Esteban. Tomorrow, gentlemen, we go to Mexico.')] },
       { do: lv => { Game.state.money += 6000; Game.state.bags += 12; Game.state.purity = Math.max(Game.state.purity, 99.1); lv.toast('+$6,000 · +12 bags of 99.1% blue'); } }, { fade: 'out' }, { end: true }

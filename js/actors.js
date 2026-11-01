@@ -4,7 +4,7 @@
 // ============================================================
 const ARCH = {
   player: { hp: 100, speed: 280 },
-  walter: { hp: 400, speed: 270, dist: [80, 160], acc: 0.09 },
+  walter: { hp: 400, speed: 270, dist: [80, 160], acc: 0.03 },
   thug: { hp: 60, speed: 235, weapon: 'bat', melee: true },
   knifer: { hp: 50, speed: 260, weapon: 'knife', melee: true },
   gunner: { hp: 70, speed: 170, weapon: 'pistol', dist: [260, 520], acc: 0.085, react: 0.7 },
@@ -13,10 +13,10 @@ const ARCH = {
   rifleman: { hp: 95, speed: 160, weapon: 'rifle', dist: [340, 640], acc: 0.065, react: 0.6 },
   heavy: { hp: 240, armor: 120, speed: 105, weapon: 'mg', dist: [280, 580], acc: 0.08, react: 0.8, armorLook: true },
   rafa: { hp: 750, speed: 250, weapon: 'gold', dist: [200, 420], acc: 0.05, react: 0.3, boss: true, look: 'rafa' },
-  marco: { hp: 800, speed: 260, weapon: 'axe', melee: true, boss: true, look: 'twinA' },
-  leo: { hp: 560, speed: 190, weapon: 'revolver', dist: [260, 520], acc: 0.035, react: 0.35, boss: true, look: 'twinB' },
+  marco: { hp: 650, speed: 260, weapon: 'axe', melee: true, boss: true, look: 'twinA' },
+  leo: { hp: 480, speed: 190, weapon: 'revolver', dist: [260, 520], acc: 0.035, react: 0.35, boss: true, look: 'twinB' },
   esteban: { hp: 950, armor: 250, speed: 170, weapon: 'shotgun', dist: [140, 300], acc: 0.04, react: 0.35, boss: true, look: 'esteban' },
-  dutch: { hp: 1400, armor: 350, speed: 120, weapon: 'mg', dist: [260, 520], acc: 0.05, react: 0.4, boss: true, look: 'dutch' },
+  dutch: { hp: 1150, armor: 300, speed: 120, weapon: 'mg', dist: [260, 520], acc: 0.075, react: 0.4, boss: true, look: 'dutch' },
   npc: { hp: 100, speed: 200 },
 };
 const HEIGHT = 88, CROUCH_H = 62;
@@ -82,8 +82,8 @@ class Actor {
     else if (this.melee && this.melee.kind === 'kick') { const e = this.meleeExt(); fF = [x + f * (14 + 40 * e), y - 12 - 46 * e]; fB = [x - f * 8, y]; }
     else if (sp > 0.05) {
       const p = this.walkPh, st = (14 + 8 * sp) * (1 - cr * 0.3);
-      fF = [x + f * Math.sin(p) * st + f * 3, y - Math.max(0, -Math.cos(p)) * 10 * sp];
-      fB = [x - f * Math.sin(p) * st - f * 1, y - Math.max(0, Math.cos(p)) * 10 * sp];
+      fF = [x + f * Math.sin(p) * st + f * 3, y - Math.max(0, Math.cos(p)) * 11 * sp];
+      fB = [x - f * Math.sin(p) * st - f * 1, y - Math.max(0, -Math.cos(p)) * 11 * sp];
     } else { fF = [x + f * (7 + cr * 9), y]; fB = [x - f * (5 + cr * 9), y]; }
     J.fF = fF; J.fB = fB;
     J.kF = ik(J.pelvis[0], J.pelvis[1], fF[0], fF[1], 24, 24, -f);
@@ -126,7 +126,7 @@ class Actor {
     } else {
       // empty hands: swing
       const sw = Math.sin(this.walkPh) * 12 * sp;
-      hF = [S[0] + f * (4 + sw), S[1] + 34]; hB = [S[0] - f * (2 + sw), S[1] + 34];
+      hF = [S[0] + f * (4 - sw), S[1] + 34 - Math.abs(sw) * 0.2]; hB = [S[0] - f * (2 - sw), S[1] + 34 - Math.abs(sw) * 0.2];
       if (this.downed > 0) { hF = [S[0] + f * 18, y - 4]; hB = [S[0] + f * 8, y - 2]; }
       if (this.cineGesture) { hF = [S[0] + f * 30, S[1] + 4]; }
       this.gAng = this.aimAng; this.G = S;
@@ -161,20 +161,22 @@ class Actor {
         }
       };
     }
+    if (this.iframes > 0 && Math.floor(this.iframes * 20) % 2) c.globalAlpha = 0.45;
     if (this.roll > 0) {
       const k = 1 - this.roll / 0.42; c.save(); c.translate(this.x, this.y - 30); c.rotate(this.rollDir * k * TAU); c.translate(-this.x, -(this.y - 30));
       drawFigure(c, this.J, this.look, this.f, opts); c.restore();
     } else drawFigure(c, this.J, this.look, this.f, opts);
+    c.globalAlpha = 1;
   }
 
   // ---------- update ----------
   update(dt, lv) {
     if (!this.alive) return;
-    this.hurtFlash -= dt; this.stagger -= dt; this.meleeCd -= dt; this.hurtT += dt; this.kick = Math.max(0, this.kick - dt * 3);
+    this.hurtFlash -= dt; this.stagger -= dt; this.iframes = (this.iframes || 0) - dt; this.lastStandCd = (this.lastStandCd || 0) - dt; this.burstDmg = Math.max(0, (this.burstDmg || 0) - dt * 26); this.meleeCd -= dt; this.hurtT += dt; this.kick = Math.max(0, this.kick - dt * 3);
     if (this.downed > 0) { this.downed -= dt; this.vx = 0; if (this.downed <= 0) { this.hp = this.maxHp * 0.5; lv.banter(this.id === 'walter' ? 'walter' : null, choose(['I\'m... I\'m alright. Keep moving.', 'Ugh. I\'m up. I\'m up.', 'That was... unpleasant.'])); } this.physics(dt, lv); this.pose(); return; }
     if (this.burn > 0) { this.burn -= dt; if (Math.random() < 0.7) lv.fx.flame(this.x + rand(-8, 8), this.y - rand(10, 80), 1, 9); if (this._burnTick === undefined || (this._burnTick -= dt) <= 0) { this._burnTick = 0.25; this.hurt(4, { kind: 'fire', x: this.x, y: this.y - 50 }, lv); } }
     // regen for the player
-    if (this.isPlayer() && this.hurtT > 3.5 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + dt * 11);
+    if (this.isPlayer()) { this.regenerating = this.hurtT > 2.5; if (this.regenerating && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + dt * 20); }
     if (this.cine !== null && this.cine !== undefined) this.cineControl(dt, lv);
     else if (this.isPlayer() && !lv.cinematic && !lv.failed && !lv.done) this.playerControl(dt, lv);
     else if (!this.isPlayer() && !this.frozen && !lv.cinematic) this.aiControl(dt, lv);
@@ -230,7 +232,7 @@ class Actor {
     if (!wasGround && this.onGround) { Audio.play('land', this.pan(), this.vol() * 0.6); lv.fx.dust(this.x, this.y, 4); }
     // walk cycle
     if (this.onGround && Math.abs(this.vx) > 10) {
-      this.walkPh += dt * Math.abs(this.vx) / 15;
+      this.walkPh += dt * Math.abs(this.vx) / 15 * (sign(this.vx) === this.facing ? 1 : -1);
       this.stepT -= dt; if (this.stepT <= 0) { this.stepT = 0.3; if (this.isPlayer()) Audio.play('step', 0, 0.6); }
     }
     this.crouch = lerp(this.crouch, this.crouching && this.onGround ? 1 : 0, Math.min(1, dt * 14));
@@ -263,8 +265,9 @@ class Actor {
   }
   switchGun(i) { const g = this.gun; if (g && g.reload) { g.reload = null; g.carry = null; g.magIn = true; g.slide = 0; g.cyl = 0; g.cover = 0; } this._lastGi = this.gi; this.gi = i; Audio.play('clank', 0, 0.4); }
   cineControl(dt, lv) {
+    this.cineT = (this.cineT || 0) + dt; if (this.cineT > 9) { this.cine = null; this.cineLower = false; this.cineT = 0; return; }
     const dx = this.cine - this.x;
-    if (Math.abs(dx) < 6) { this.moveX = 0; this.cine = null; this.cineLower = false; return; }
+    if (Math.abs(dx) < 6) { this.moveX = 0; this.cine = null; this.cineLower = false; this.cineT = 0; return; }
     else { this.moveX = sign(dx) * (this.cineWalk ? 0.45 : 0.8); this.facing = sign(dx); if (this.blocked && this.onGround) this.wantJump = true; }
     this.aimAng = this.facing > 0 ? 0.6 : PI - 0.6; this.wantFire = false; this.cineLower = true;
   }
@@ -316,7 +319,7 @@ class Actor {
     for (let i = 0; i < d.bullets; i++) {
       const a = baseA + rand(-1, 1) * d.spread * spreadMul;
       const spd = d.speed * (this.team === 'enemy' ? 0.62 : 1) * rand(0.95, 1.05);
-      lv.bullets.push({ x: S[0], y: S[1], sx: muzzle[0], sy: muzzle[1], vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, dmg: d.dmg * (this.team === 'enemy' ? (this.boss ? 0.5 : 0.4) : 1) * (this.isPlayer() && Game.state.upgrades.hollow ? 1.2 : 1), team: this.team, owner: this, life: 0.9, pierce: d.pierce || 0, fire: fireRounds, knock: d.knock / d.bullets, travelled: 0, shotgun: d.bullets > 1, hitSet: new Set() });
+      lv.bullets.push({ x: S[0], y: S[1], sx: muzzle[0], sy: muzzle[1], vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, dmg: d.dmg * (this.team === 'enemy' ? (this.boss ? 0.42 : 0.4) * (d.bullets > 1 ? 0.6 : 1) : this.team === 'ally' ? 1.4 : 1) * (this.isPlayer() && Game.state.upgrades.hollow ? 1.2 : 1), team: this.team, owner: this, life: 0.9, pierce: d.pierce || 0, fire: fireRounds, knock: d.knock / d.bullets, travelled: 0, shotgun: d.bullets > 1, hitSet: new Set() });
     }
     lv.fx.muzzle(muzzle[0], muzzle[1], this.gAng, d.bullets > 1 ? 1.5 : d.heavy ? 1.3 : 1, fireRounds);
     if (d.reloadType !== 'shell' && d.reloadType !== 'revolver') lv.fx.casing(this.L2W(d.eject[0], d.eject[1]), this.f);
@@ -333,7 +336,7 @@ class Actor {
     this.wantFire = false; this.moveX = 0; this.crouching = false;
     if (this.passive) return;
     if (this.team === 'ally') return this.allyControl(dt, lv);
-    const tgt = lv.nearestHostile(this);
+    const tgt = lv.nearestHostile(this) || (this.ai.state === 'alert' ? lv.nearestHostile(this, 1e9) : null);
     if (!tgt) { this.aimAng = this.facing > 0 ? 0.3 : PI - 0.3; return; }
     const dx = tgt.x - this.x, d = Math.abs(dx);
     const eye = [this.x, this.y - 78 + this.crouch * 18]; let tc = tgt.center();
@@ -392,29 +395,37 @@ class Actor {
   }
   allyControl(dt, lv) {
     const ai = this.ai, p = lv.player;
-    this.wantFire = false;
-    const enemy = lv.nearestHostile(this, 900);
+    this.wantFire = false; this.crouching = false;
+    const enemy = lv.nearestHostile(this, 1300);
+    let los = false, tc = null;
+    if (enemy) {
+      const eye = [this.x, this.y - 78]; tc = enemy.center(); los = lv.los(eye[0], eye[1], tc[0], tc[1]);
+      if (!los) { const h = enemy.headPos(); if (lv.los(eye[0], eye[1], h[0], h[1] + 4)) { los = true; tc = [h[0], h[1] + 6]; } }
+    }
     if (p) {
-      const behind = p.x - p.facing * 110, dx = behind - this.x;
-      if (Math.abs(dx) > 50) this.moveX = sign(dx) * (Math.abs(dx) > 260 ? 1 : 0.6); else this.moveX = 0;
+      // stay with Jace; step up beside him when cover blocks the shot; back away from anyone with a bat
+      let goal = p.x - p.facing * 100;
+      if (enemy && !los) goal = p.x + sign(enemy.x - p.x) * 30;
+      if (enemy && (enemy.arch.melee || (enemy.gun && enemy.gun.melee)) && Math.abs(enemy.x - this.x) < 150) goal = this.x - sign(enemy.x - this.x) * 220;
+      const dx = goal - this.x;
+      this.moveX = Math.abs(dx) > 40 ? sign(dx) * (Math.abs(dx) > 240 ? 1 : 0.65) : 0;
       if (this.blocked && this.onGround) this.wantJump = true;
-      if (Math.abs(p.x - this.x) > 1200) { this.x = p.x - p.facing * 160; this.y = p.y; }
+      if (Math.abs(p.x - this.x) > 1100) { this.x = p.x - p.facing * 160; this.y = p.y; this.vy = 0; }
     }
     if (enemy) {
-      const tc = enemy.center(), eye = [this.x, this.y - 78];
-      const los = lv.los(eye[0], eye[1], tc[0], tc[1]);
       this.facing = enemy.x >= this.x ? 1 : -1;
       const want = Math.atan2(tc[1] - (this.y - 70), tc[0] - this.x);
-      this.aimAng += angDiff(this.aimAng, want) * Math.min(1, dt * 5);
+      this.aimAng += angDiff(this.aimAng, want) * Math.min(1, dt * 10);
       ai.pause -= dt;
-      if (los && ai.pause <= 0 && this.gun) { this.wantFire = true; ai.pause = rand(0.6, 1.3); }
-      this.crouching = this.moveX === 0 && Math.random() < 0.01 ? !this.crouching : this.crouching && this.moveX === 0;
+      const g = this.gun;
+      if (los && g && !g.reload && ai.pause <= 0 && Math.abs(angDiff(this.aimAng, want)) < 0.3) { this.wantFire = true; ai.pause = rand(0.28, 0.55); }
       this.bangCd -= dt;
-      if (this.bangCd <= 0 && Game.state.walterBangs && lv.countHostilesNear(enemy.x, 260) >= 2 && Math.abs(enemy.x - this.x) < 650) {
-        this.bangCd = rand(16, 24); lv.throwItem(this, 'bang', enemy.x, enemy.y - 40);
+      const bangsOk = Game.state.walterBangs || Game.state.chapter >= 1;
+      if (this.bangCd <= 0 && bangsOk && lv.countHostilesNear(enemy.x, 260) >= 2 && Math.abs(enemy.x - this.x) < 650 && Math.abs(enemy.x - p.x) > 170) {
+        this.bangCd = rand(14, 20); lv.throwItem(this, 'bang', enemy.x, enemy.y - 40);
         lv.banter('walter', choose(['Stand back.', 'Chemistry, gentlemen.', 'Let me handle this.', 'Fire in the hole!']));
       }
-    } else { this.facing = p ? (p.x >= this.x ? 1 : -1) : this.facing; this.aimAng = this.facing > 0 ? 0.6 : PI - 0.6; }
+    } else { this.bangCd = Math.min(this.bangCd, 8); this.facing = p ? (p.x >= this.x ? 1 : -1) : this.facing; this.aimAng = this.facing > 0 ? 0.6 : PI - 0.6; }
   }
   alert(lv) {
     if (this.ai.state === 'alert') return;
@@ -428,7 +439,16 @@ class Actor {
     if (this.roll > 0 && o.kind === 'bullet' && this.isPlayer()) return false;
     if (this.downed > 0) return false;
     if (this.isPlayer() && Game.cheatGod) dmg = 0;
-    if (this.isPlayer()) dmg *= Game.diffMul();
+    if (this.isPlayer()) {
+      if (this.iframes > 0) return false;
+      dmg *= Game.diffMul();
+      if (o.kind === 'fire') dmg *= 0.5;
+      if (o.kind === 'bullet') dmg = Math.min(dmg, 20); else if (o.kind === 'melee') dmg = Math.min(dmg, 22);
+      // burst limiter: past ~35 damage in a short window, extra damage is mostly soaked (no instant shredding)
+      const allowed = Math.max(0, 35 - this.burstDmg); dmg = Math.min(dmg, allowed) + Math.max(0, dmg - allowed) * 0.15;
+      this.burstDmg += dmg;
+    }
+    if (this.team === 'ally' && o.kind !== 'fire') dmg *= 0.5;
     let absorbed = 0;
     if (this.armor > 0 && o.kind !== 'fire') { absorbed = Math.min(this.armor, dmg * 0.65); this.armor -= absorbed; }
     if (this.isPlayer()) Game.state.armor = this.armor;
@@ -443,8 +463,9 @@ class Actor {
       if (absorbed > real) lv.fx.spark(o.x, o.y, 6, -(o.dx || 0), -(o.dy || 0), '#ddd');
       else lv.fx.blood(o.x, o.y, o.dx || 0, o.dy || 0, bl, 0.6);
     }
+    if (this.isPlayer() && this.hp <= 0 && this.lastStandCd <= 0 && !Game.cheatGod) { this.hp = 1; this.iframes = 1.5; this.lastStandCd = 20; this.hurtT = 0; lv.toast('CLOSE CALL!'); lv.slowmo = 0.45; }
     if (this.hp <= 0) {
-      if (this.id === 'walter' || this.invuln) { this.hp = 0; this.downed = 7; this.burn = 0; this.melee = null; lv.banter('walter', choose(['Agh! I\'m hit!', 'Jace! I\'m down!', 'Ngh... give me a moment...'])); return false; }
+      if (this.id === 'walter' || this.invuln) { this.hp = 0; this.downed = 5; this.burn = 0; this.melee = null; lv.banter('walter', choose(['Agh! I\'m hit!', 'Jace! I\'m down!', 'Ngh... give me a moment...'])); return false; }
       this.die(o, lv); return true;
     }
     return false;

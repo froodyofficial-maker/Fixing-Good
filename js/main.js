@@ -13,7 +13,7 @@ const Game = {
       difficulty: 'normal', unlocked: ['rv'], buyers: null, playTime: 0,
     };
   },
-  diffMul() { return { easy: 0.6, normal: 1, hard: 1.45 }[this.state.difficulty] || 1; },
+  diffMul() { return { easy: 0.5, normal: 0.85, hard: 1.3 }[this.state.difficulty] || 1; },
   hasSave() { return !!load('save'); },
   save() { if (this.state) { store('save', this.state); } },
   loadSave() { const s = load('save'); if (s) { this.state = Object.assign(this.newState(), s); this.state.upgrades = s.upgrades || {}; return true; } return false; },

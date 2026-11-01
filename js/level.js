@@ -197,7 +197,7 @@ class Level {
       if (!a.alive || a.downed > 0) continue;
       const c = a.center(), d = Math.hypot(c[0] - x, c[1] - y); if (d > r) continue;
       let k = Math.pow(1 - d / r, 0.7), dm = dmg * k;
-      if (a.team === 'player' && o.owner && o.owner.team !== 'enemy') dm *= 0.35;
+      if (a.team === 'player' && (!o.owner || o.owner.team !== 'enemy')) dm *= 0.35; // own throws + barrels hurt you far less
       if (a.id === 'walter') dm *= 0.3;
       if (a.passive) continue;
       const dx = (c[0] - x) / (d || 1), dy = (c[1] - y) / (d || 1) - 0.6;
@@ -244,12 +244,18 @@ class Level {
   onDeath(a, o) {
     if (a.team === 'enemy') {
       this.stats.kills++; Game.state.stats.kills++;
+      if (this.player && this.player.alive) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 6); // adrenaline
+      if (o.from && o.from.id === 'walter' && Math.random() < 0.3) this.banter('walter', choose(['Got him.', 'That one\'s mine.', 'Applied science.', 'Stay behind cover, Jace!', 'Reloading— no. Still have rounds.']));
       if (this.player) {
         const st = Game.state, g = a.gun;
         if (g && !g.melee && !st.weapons.includes(g.key)) this.pickups.push({ x: a.x, y: a.y - 40, vy: -300, vx: rand(-80, 80), kind: 'gun', type: g.key });
         if (g && !g.melee && Math.random() < 0.65) this.pickups.push({ x: a.x + rand(-10, 10), y: a.y - 40, vy: -250, vx: rand(-100, 100), kind: 'ammo', type: g.def.ammo, amount: g.def.ammo === '12ga' ? randi(3, 6) : g.def.ammo === '357' ? randi(3, 6) : randi(10, 24) });
         if (Math.random() < 0.3 || a.boss) this.pickups.push({ x: a.x, y: a.y - 40, vy: -280, vx: rand(-100, 100), kind: 'cash', amount: a.boss ? 1500 : randi(30, 120) });
-        if (Math.random() < 0.07) this.pickups.push({ x: a.x, y: a.y - 40, vy: -280, vx: rand(-100, 100), kind: 'med' });
+        // medkits drop more often the more hurt you are; guaranteed when you're nearly dead with none left
+        const pl = this.player, frac = pl ? pl.hp / pl.maxHp : 1;
+        const medChance = frac < 0.25 ? 0.75 : frac < 0.5 ? 0.4 : frac < 0.75 ? 0.15 : 0.05;
+        const pending = this.pickups.some(k => k.kind === 'med');
+        if (!pending && (Math.random() < medChance || (frac < 0.3 && st.medkits === 0))) this.pickups.push({ x: a.x, y: a.y - 40, vy: -320, vx: rand(-60, 60), kind: 'med' });
       }
       if (a.boss) { this.slowmo = 1.6; Audio.play('explode', 0, 0.3); }
       else if (this.enemiesAlive() === 0 && this.vars.slowLast !== false) this.slowmo = 0.7;
@@ -267,7 +273,11 @@ class Level {
         const st = Game.state;
         if (k.kind === 'ammo') { st.ammo[k.type] = (st.ammo[k.type] || 0) + k.amount; this.toast('+' + k.amount + ' ' + AMMO_NAMES[k.type]); Audio.play('pickup'); }
         else if (k.kind === 'cash') { st.money += k.amount; this.stats.cash += k.amount; this.toast('+' + fmtMoney(k.amount)); Audio.play('cash'); }
-        else if (k.kind === 'med') { if (st.medkits >= 5) continue; st.medkits++; this.toast('+1 Medkit'); Audio.play('pickup'); }
+        else if (k.kind === 'med') {
+          if (p.hp < p.maxHp * 0.6) { p.hp = Math.min(p.maxHp, p.hp + 45); this.toast('+45 HP'); this.healFlash = 0.6; }
+          else if (st.medkits < 5) { st.medkits++; this.toast('+1 Medkit'); } else continue;
+          Audio.play('pickup');
+        }
         else if (k.kind === 'gun') { if (!st.weapons.includes(k.type)) { st.weapons.push(k.type); p.guns.push(new Gun(k.type)); st.ammo[WEAPONS[k.type].ammo] += WEAPONS[k.type].mag; this.toast('NEW WEAPON: ' + WEAPONS[k.type].name + '  [' + p.guns.length + ']'); Audio.play('uiok'); } }
         else if (k.kind === 'bang') { st.bangs++; this.toast('+1 Bang Crystal'); Audio.play('pickup'); }
         this.pickups.splice(i, 1);
@@ -337,7 +347,7 @@ class Level {
     for (const t of this.banters) t.life -= rdt; this.banters = this.banters.filter(t => t.life > 0);
     for (const f of this.floaters) f.life -= rdt; this.floaters = this.floaters.filter(t => t.life > 0);
     if (this.title) { this.title.t += rdt; if (this.title.t > 4) this.title = null; }
-    this.hurtVignette = Math.max(0, this.hurtVignette - rdt); this.hitMarker -= rdt;
+    this.hurtVignette = Math.max(0, this.hurtVignette - rdt); this.hitMarker -= rdt; this.healFlash = (this.healFlash || 0) - rdt;
     this.letterbox = lerp(this.letterbox, this.cinematic ? 1 : 0, Math.min(1, rdt * 5));
     this.fade = lerp(this.fade, this.fadeTarget, Math.min(1, rdt * 3)); if (Math.abs(this.fade - this.fadeTarget) < 0.01) this.fade = this.fadeTarget;
     if (this.failed) this.failT += rdt;
@@ -439,7 +449,7 @@ class Level {
   }
   drawPickup(c, k) {
     const bob = Math.sin(this.time * 4 + k.x) * 2; c.save(); c.translate(k.x, k.y + bob);
-    c.globalCompositeOperation = 'lighter'; c.fillStyle = 'rgba(255,220,120,.15)'; c.beginPath(); c.arc(0, 0, 18, 0, TAU); c.fill(); c.globalCompositeOperation = 'source-over';
+    c.globalCompositeOperation = 'lighter'; c.fillStyle = k.kind === 'med' ? `rgba(120,255,120,${0.25 + Math.sin(this.time * 6) * 0.12})` : 'rgba(255,220,120,.15)'; c.beginPath(); c.arc(0, 0, k.kind === 'med' ? 24 : 18, 0, TAU); c.fill(); c.globalCompositeOperation = 'source-over';
     if (k.kind === 'ammo') { c.fillStyle = '#4a5a2a'; c.strokeStyle = INK; c.lineWidth = 1.5; c.fillRect(-10, -7, 20, 13); c.strokeRect(-10, -7, 20, 13); c.fillStyle = '#e8d070'; c.font = 'bold 8px monospace'; c.fillText(AMMO_NAMES[k.type].replace('mm', ''), -9, 3); }
     else if (k.kind === 'cash') { c.fillStyle = '#5a8a3a'; c.strokeStyle = '#2a4a1a'; c.lineWidth = 1.5; c.fillRect(-11, -6, 22, 11); c.strokeRect(-11, -6, 22, 11); c.fillStyle = '#c8e0a0'; c.beginPath(); c.arc(0, -0.5, 3, 0, TAU); c.fill(); }
     else if (k.kind === 'med') { c.fillStyle = '#eee'; c.strokeStyle = INK; c.lineWidth = 1.5; c.fillRect(-10, -8, 20, 15); c.strokeRect(-10, -8, 20, 15); c.fillStyle = '#c0281c'; c.fillRect(-2, -6, 4, 11); c.fillRect(-6, -2, 12, 4); }
@@ -466,6 +476,8 @@ class Level {
       drawPortrait(c, 8, 8, 56, LOOKS.jace, p.hp < 40 ? 'worried' : 'neutral');
       c.font = 'bold 13px "Oswald", Impact, sans-serif'; c.fillStyle = '#ddd'; c.fillText('JACE', 74, 22);
       c.fillStyle = '#300'; c.fillRect(74, 28, 230, 14); c.fillStyle = p.hp < 35 ? '#e03020' : '#c8302a'; c.fillRect(74, 28, 230 * clamp(p.hp / p.maxHp, 0, 1), 14);
+      const regen = p.regenerating && p.hp < p.maxHp;
+      if (regen || this.healFlash > 0) { c.fillStyle = `rgba(120,240,120,${0.35 + Math.sin(this.time * 8) * 0.2})`; c.fillRect(74, 28, 230 * clamp(p.hp / p.maxHp, 0, 1), 14); c.font = 'bold 11px "Oswald", sans-serif'; c.fillStyle = '#9fe88a'; c.textAlign = 'right'; c.fillText(this.healFlash > 0 ? 'HEALED' : 'REGENERATING', 304, 22); c.textAlign = 'left'; }
       c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(74, 28, 230 * clamp(p.hp / p.maxHp, 0, 1), 4);
       c.fillStyle = '#123'; c.fillRect(74, 46, 230, 7); c.fillStyle = '#5ab0e0'; c.fillRect(74, 46, 230 * clamp(p.armor / 150, 0, 1), 7);
       c.font = '12px "Oswald", sans-serif'; c.fillStyle = '#ccc';
@@ -499,6 +511,16 @@ class Level {
       const left = this.enemiesAlive(); if (left > 0 && this.def.showCount !== false) { c.font = '13px "Oswald", sans-serif'; c.fillStyle = '#e8a090'; c.fillText('Hostiles: ' + left, 22, 68); }
       // walter health
       if (this.walter) { const w = this.walter; c.save(); c.translate(24, H - 132); c.fillStyle = 'rgba(10,10,10,.55)'; rrect(c, 0, 0, 200, 32, 6); c.fill(); drawPortrait(c, 3, 3, 26, LOOKS.walter); c.fillStyle = '#bbb'; c.font = '11px "Oswald", sans-serif'; c.fillText(w.downed > 0 ? 'WALTER — DOWN (' + Math.ceil(w.downed) + ')' : 'WALTER', 36, 13); c.fillStyle = '#222'; c.fillRect(36, 18, 154, 6); c.fillStyle = w.downed > 0 ? '#c84' : '#7ab060'; c.fillRect(36, 18, 154 * clamp(w.hp / w.maxHp, 0, 1), 6); c.restore(); }
+    }
+    // arrows pointing at hostiles that are off-screen
+    if (showHud) {
+      for (const a of this.actors) {
+        if (!a.alive || a.team !== 'enemy' || a.passive || a.mounted) continue;
+        const sx = (a.x - this.cam.x) * this.Z; if (sx > -10 && sx < W + 10) continue;
+        const left = sx < 0, ax = left ? 18 : W - 18, ay = clamp(a.y * this.Z - this.OFFY - 60, 120, H - 160), pulse = 0.6 + Math.sin(this.time * 6) * 0.3;
+        c.save(); c.translate(ax, ay); c.scale(left ? -1 : 1, 1); c.globalAlpha = pulse; c.fillStyle = '#ff4a3a'; c.strokeStyle = '#000'; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(8, 0); c.lineTo(-8, -11); c.lineTo(-4, 0); c.lineTo(-8, 11); c.closePath(); c.fill(); c.stroke(); c.restore();
+      }
     }
     // boss bar
     const boss = this.bossId && this.named[this.bossId];
