@@ -1,0 +1,12 @@
+{
+  "name": "fixing-good",
+  "version": "1.0.0",
+  "description": "Fixing Good: a side-scrolling desert crime action game. Cook, trade and shoot your way across the county in a beat-up RV.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "build": "node build.mjs",
+    "check": "node check.mjs"
+  }
+}

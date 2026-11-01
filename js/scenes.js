@@ -181,7 +181,7 @@ const Story = {
 // ---------------------------------------------------------------- LEVEL WRAPPER
 class LevelScene {
   constructor(key, onDone, opts = {}) {
-    this.key = key; this.def = LEVELS[key]; this.onDone = onDone; this.opts = opts;
+    this.key = key; this.def = opts.def || LEVELS[key]; this.onDone = onDone; this.opts = opts;
     this.snapshot = JSON.stringify(Game.state); this.paused = false; this.overlay = null; this.resultsT = 0; this.results = null;
     this.makeLevel(null);
   }
@@ -299,6 +299,7 @@ function drawNodeIcon(c, kind, x, y, s = 1) {
     case 'gun': c.scale(0.9, 0.9); c.translate(-6, 2); GUN_ART.pistol(c, { magIn: true }); break;
     case 'chem': c.fillStyle = '#2a5aa0'; rrect(c, -9, -13, 18, 26, 3); c.fill(); c.stroke(); c.fillStyle = '#fff'; c.fillRect(-9, -3, 18, 3); break;
     case 'law': c.fillStyle = '#c8a040'; c.fillRect(-1.5, -12, 3, 22); c.fillRect(-12, -8, 24, 3); c.beginPath(); c.arc(-10, 2, 5, 0, PI); c.arc(10, 2, 5, 0, PI); c.fill(); break;
+    case 'job': c.fillStyle = '#e8a040'; c.beginPath(); c.moveTo(-10, -10); c.lineTo(10, -10); c.lineTo(7, 12); c.lineTo(-7, 12); c.closePath(); c.fill(); c.stroke(); c.fillStyle = '#fff8e0'; c.fillRect(-9, -13, 18, 5); break;
     case 'story': c.fillStyle = '#c0281c'; c.beginPath(); c.arc(0, 0, 13, 0, TAU); c.fill(); c.stroke(); c.fillStyle = '#fff'; c.font = `bold 18px ${FONT}`; c.textAlign = 'center'; c.fillText('!', 0, 7); break;
   }
   c.restore();
@@ -318,6 +319,7 @@ class HubScene {
       if (k === 'dusty') return Game.setScene(new ShopScene('dusty'));
       if (k === 'hardware') return Game.setScene(new ShopScene('hardware'));
       if (k === 'morty') return Game.setScene(new ShopScene('morty'));
+      if (k === 'bar') return Game.setScene(new JobScene());
     };
     // random events on the road
     const ambush = st.chapter >= 3 && n.icon !== 'story' && Math.random() < 0.1 + st.heat / 500;
@@ -333,6 +335,7 @@ class HubScene {
     c.drawImage(MAP_CANVAS, 0, 0);
     // roads
     c.lineCap = 'round';
+    for (const k in NODES) if (!this.visible(k) && NODES[k].icon === 'story') { const n = NODES[k]; c.fillStyle = 'rgba(70,45,25,.35)'; c.beginPath(); c.arc(n.x, n.y, 7, 0, TAU); c.fill(); }
     for (const [a, b] of ROADS) { const A = NODES[a], B = NODES[b]; c.strokeStyle = 'rgba(70,50,30,.55)'; c.lineWidth = 7; c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.strokeStyle = 'rgba(240,220,150,.6)'; c.lineWidth = 1.5; c.setLineDash([8, 8]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.setLineDash([]); }
     // nodes
     let hover = null;
@@ -683,8 +686,8 @@ class CookScene {
     c.fillStyle = tint; c.beginPath(); c.moveTo(600, 380); c.lineTo(680, 380); c.lineTo(710, 430); c.quadraticCurveTo(640, 450, 570, 430); c.closePath(); c.fill();
     for (const b of this.bubbles) { c.strokeStyle = `rgba(255,255,255,${b.life * 0.6})`; c.lineWidth = 1.5; c.beginPath(); c.arc(b.x, b.y, 3, 0, TAU); c.stroke(); }
     // cooks
-    const J1 = poseStatic(330, 560, 1), J2 = poseStatic(960, 560, -1);
-    drawFigure(c, J1, LOOKS.walterHaz, 1, {}); drawFigure(c, J2, LOOKS.jaceHaz, -1, {});
+    const big = (x, f, look) => { c.save(); c.translate(x, 560); c.scale(1.7, 1.7); drawFigure(c, poseStatic(0, 0, f), look, f, {}); c.restore(); };
+    big(250, 1, LOOKS.walterHaz); big(1120, -1, LOOKS.jaceHaz);
     // header
     UI.panel(c, 20, 16, W - 40, 40, 0.8);
     UI.text(c, this.o.tutorial ? 'FIRST COOK' : 'COOKING · DAY ' + Game.state.day, 40, 44, 20, '#9fe88a', 'left', true);
@@ -703,7 +706,7 @@ class CookScene {
     // timer
     if (this.phase === 'play' && step.id !== 'reagent') { c.fillStyle = '#222'; c.fillRect(440, 80, 400, 8); c.fillStyle = '#e8c060'; c.fillRect(440, 80, 400 * clamp(1 - this.t / (step.id === 'bag' ? 6 : D), 0, 1), 8); }
     switch (step.id) {
-      case 'heat': { const x = 900, y = 200, h = 300; c.fillStyle = '#111'; rrect(c, x, y, 50, h, 8); c.fill(); c.fillStyle = 'rgba(80,220,80,.45)'; c.fillRect(x, y + h * (1 - s.band[1]), 50, h * (s.band[1] - s.band[0])); c.fillStyle = s.v > s.band[1] ? '#ff5030' : '#ff9030'; c.fillRect(x + 12, y + h * (1 - s.v), 26, h * s.v); c.strokeStyle = '#fff'; c.lineWidth = 2; c.strokeRect(x, y, 50, h); UI.text(c, Math.round(80 + s.v * 220) + '°', x + 25, y - 12, 18, '#fff', 'center', true); UI.text(c, 'HOLD MOUSE', x + 25, y + h + 26, 14, '#ffd060', 'center', true); break; }
+      case 'heat': { const x = 900, y = 200, h = 300; c.fillStyle = '#111'; rrect(c, x, y, 50, h, 8); c.fill(); c.fillStyle = 'rgba(80,220,80,.45)'; c.fillRect(x, y + h * (1 - s.band[1]), 50, h * (s.band[1] - s.band[0])); c.fillStyle = s.v > s.band[1] ? '#ff5030' : '#ff9030'; c.fillRect(x + 12, y + h * (1 - s.v), 26, h * s.v); c.strokeStyle = '#fff'; c.lineWidth = 2; c.strokeRect(x, y, 50, h); UI.text(c, Math.round(80 + s.v * 220) + '°F', x + 25, y - 12, 18, '#fff', 'center', true); UI.text(c, 'HOLD MOUSE', x + 25, y + h + 26, 14, '#ffd060', 'center', true); break; }
       case 'reagent': { const x = 390, y = 140, w = 500; c.fillStyle = '#111'; rrect(c, x, y, w, 34, 6); c.fill(); c.fillStyle = 'rgba(80,220,80,.55)'; c.fillRect(x + w * (s.zone - 0.07), y, w * 0.14, 34); c.fillStyle = '#fff'; c.fillRect(x + w * s.m - 3, y - 6, 6, 46); UI.text(c, 'CLICK! ' + s.hits.length + '/3', x + w / 2, y + 64, 18, '#ffd060', 'center', true); s.hits.forEach((h, k) => UI.text(c, h > 0.7 ? 'PERFECT' : h > 0.3 ? 'OK' : 'MISS', x + 140 + k * 110, y + 94, 15, h > 0.7 ? '#9fe88a' : h > 0.3 ? '#ffd060' : '#ff6050', 'center', true)); break; }
       case 'stir': { c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 2; c.setLineDash([6, 6]); c.beginPath(); c.arc(640, 400, 110, 0, TAU); c.stroke(); c.setLineDash([]); const k = clamp(s.speed / 20, 0, 1); c.fillStyle = '#111'; c.fillRect(440, 110, 400, 18); c.fillStyle = 'rgba(80,220,80,.5)'; c.fillRect(440 + 400 * 5 / 20, 110, 400 * 9 / 20, 18); c.fillStyle = '#fff'; c.fillRect(440 + 400 * k - 3, 104, 6, 30); UI.text(c, 'CIRCLE THE MOUSE AROUND THE FLASK', 640, 160, 16, '#ffd060', 'center', true); break; }
       case 'cool': { const x = 390, y = 140, w = 500; c.fillStyle = '#111'; rrect(c, x, y, w, 30, 6); c.fill(); c.fillStyle = 'rgba(80,180,255,.5)'; c.fillRect(x + w * 0.38, y, w * 0.24, 30); c.fillStyle = '#fff'; c.fillRect(x + w * s.v - 3, y - 6, 6, 42); UI.text(c, 'A / D  or move the mouse to keep it centered', x + w / 2, y + 62, 16, '#ffd060', 'center', true); break; }

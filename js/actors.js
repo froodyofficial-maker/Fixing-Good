@@ -7,11 +7,11 @@ const ARCH = {
   walter: { hp: 400, speed: 270, dist: [80, 160], acc: 0.09 },
   thug: { hp: 60, speed: 235, weapon: 'bat', melee: true },
   knifer: { hp: 50, speed: 260, weapon: 'knife', melee: true },
-  gunner: { hp: 70, speed: 170, weapon: 'pistol', dist: [260, 520], acc: 0.06, react: 0.6 },
-  smg: { hp: 75, speed: 180, weapon: 'smg', dist: [220, 440], acc: 0.08, react: 0.55 },
-  shotgunner: { hp: 100, speed: 190, weapon: 'shotgun', dist: [110, 260], acc: 0.04, react: 0.55 },
-  rifleman: { hp: 95, speed: 160, weapon: 'rifle', dist: [340, 640], acc: 0.045, react: 0.5 },
-  heavy: { hp: 240, armor: 120, speed: 105, weapon: 'mg', dist: [280, 580], acc: 0.06, react: 0.7, armorLook: true },
+  gunner: { hp: 70, speed: 170, weapon: 'pistol', dist: [260, 520], acc: 0.085, react: 0.7 },
+  smg: { hp: 75, speed: 180, weapon: 'smg', dist: [220, 440], acc: 0.11, react: 0.65 },
+  shotgunner: { hp: 100, speed: 190, weapon: 'shotgun', dist: [110, 260], acc: 0.05, react: 0.65 },
+  rifleman: { hp: 95, speed: 160, weapon: 'rifle', dist: [340, 640], acc: 0.065, react: 0.6 },
+  heavy: { hp: 240, armor: 120, speed: 105, weapon: 'mg', dist: [280, 580], acc: 0.08, react: 0.8, armorLook: true },
   rafa: { hp: 750, speed: 250, weapon: 'gold', dist: [200, 420], acc: 0.05, react: 0.3, boss: true, look: 'rafa' },
   marco: { hp: 800, speed: 260, weapon: 'axe', melee: true, boss: true, look: 'twinA' },
   leo: { hp: 560, speed: 190, weapon: 'revolver', dist: [260, 520], acc: 0.035, react: 0.35, boss: true, look: 'twinB' },
@@ -174,7 +174,7 @@ class Actor {
     if (this.downed > 0) { this.downed -= dt; this.vx = 0; if (this.downed <= 0) { this.hp = this.maxHp * 0.5; lv.banter(this.id === 'walter' ? 'walter' : null, choose(['I\'m... I\'m alright. Keep moving.', 'Ugh. I\'m up. I\'m up.', 'That was... unpleasant.'])); } this.physics(dt, lv); this.pose(); return; }
     if (this.burn > 0) { this.burn -= dt; if (Math.random() < 0.7) lv.fx.flame(this.x + rand(-8, 8), this.y - rand(10, 80), 1, 9); if (this._burnTick === undefined || (this._burnTick -= dt) <= 0) { this._burnTick = 0.25; this.hurt(4, { kind: 'fire', x: this.x, y: this.y - 50 }, lv); } }
     // regen for the player
-    if (this.isPlayer() && this.hurtT > 4.5 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + dt * 6);
+    if (this.isPlayer() && this.hurtT > 3.5 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + dt * 11);
     if (this.cine !== null && this.cine !== undefined) this.cineControl(dt, lv);
     else if (this.isPlayer() && !lv.cinematic && !lv.failed && !lv.done) this.playerControl(dt, lv);
     else if (!this.isPlayer() && !this.frozen && !lv.cinematic) this.aiControl(dt, lv);
@@ -265,7 +265,7 @@ class Actor {
   cineControl(dt, lv) {
     const dx = this.cine - this.x;
     if (Math.abs(dx) < 6) { this.moveX = 0; this.cine = null; this.cineLower = false; return; }
-    else { this.moveX = sign(dx) * (this.cineWalk ? 0.45 : 0.8); this.facing = sign(dx); }
+    else { this.moveX = sign(dx) * (this.cineWalk ? 0.45 : 0.8); this.facing = sign(dx); if (this.blocked && this.onGround) this.wantJump = true; }
     this.aimAng = this.facing > 0 ? 0.6 : PI - 0.6; this.wantFire = false; this.cineLower = true;
   }
   startMelee(lv) {
@@ -316,7 +316,7 @@ class Actor {
     for (let i = 0; i < d.bullets; i++) {
       const a = baseA + rand(-1, 1) * d.spread * spreadMul;
       const spd = d.speed * (this.team === 'enemy' ? 0.62 : 1) * rand(0.95, 1.05);
-      lv.bullets.push({ x: S[0], y: S[1], sx: muzzle[0], sy: muzzle[1], vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, dmg: d.dmg * (this.team === 'enemy' ? 0.55 : 1) * (this.isPlayer() && Game.state.upgrades.hollow ? 1.2 : 1), team: this.team, owner: this, life: 0.9, pierce: d.pierce || 0, fire: fireRounds, knock: d.knock / d.bullets, travelled: 0, shotgun: d.bullets > 1, hitSet: new Set() });
+      lv.bullets.push({ x: S[0], y: S[1], sx: muzzle[0], sy: muzzle[1], vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, dmg: d.dmg * (this.team === 'enemy' ? (this.boss ? 0.5 : 0.4) : 1) * (this.isPlayer() && Game.state.upgrades.hollow ? 1.2 : 1), team: this.team, owner: this, life: 0.9, pierce: d.pierce || 0, fire: fireRounds, knock: d.knock / d.bullets, travelled: 0, shotgun: d.bullets > 1, hitSet: new Set() });
     }
     lv.fx.muzzle(muzzle[0], muzzle[1], this.gAng, d.bullets > 1 ? 1.5 : d.heavy ? 1.3 : 1, fireRounds);
     if (d.reloadType !== 'shell' && d.reloadType !== 'revolver') lv.fx.casing(this.L2W(d.eject[0], d.eject[1]), this.f);
@@ -382,8 +382,8 @@ class Actor {
     if (los && g && !g.reload && d < 1000) {
       ai.pause -= dt;
       if (ai.pause <= 0) {
-        if (g.def.auto) { this.wantFire = true; ai.burst -= dt; if (ai.burst <= 0) { ai.burst = rand(0.3, 0.8) * (this.boss ? 1.6 : 1); ai.pause = rand(0.5, 1.2) * (this.boss ? 0.7 : 1); } }
-        else { this.wantFire = true; ai.pause = rand(0.45, 1.0) * (this.boss ? 0.55 : 1) * (g.def.reloadType === 'shell' ? 1.2 : 1); }
+        if (g.def.auto) { this.wantFire = true; ai.burst -= dt; if (ai.burst <= 0) { ai.burst = rand(0.25, 0.6) * (this.boss ? 1.7 : 1); ai.pause = rand(0.8, 1.7) * (this.boss ? 0.6 : 1); } }
+        else { this.wantFire = true; ai.pause = rand(0.75, 1.5) * (this.boss ? 0.5 : 1) * (g.def.reloadType === 'shell' ? 1.15 : 1); }
       }
     }
     // boss specials
@@ -418,7 +418,7 @@ class Actor {
   }
   alert(lv) {
     if (this.ai.state === 'alert') return;
-    this.ai.state = 'alert'; this.ai.pause = rand(0.2, 0.6) + (this.ai.react > 0 ? 0 : 0);
+    this.ai.state = 'alert'; this.ai.pause = rand(0.6, 1.3) * (this.boss ? 0.5 : 1);
     if (Math.random() < 0.25 && this.team === 'enemy' && !this.boss) lv.shout(this, choose(['There he is!', 'Get him!', '¡Ahí está!', 'Light him up!', 'Over here!', 'Kill that punk!']));
   }
 
@@ -433,11 +433,11 @@ class Actor {
     if (this.armor > 0 && o.kind !== 'fire') { absorbed = Math.min(this.armor, dmg * 0.65); this.armor -= absorbed; }
     if (this.isPlayer()) Game.state.armor = this.armor;
     const real = dmg - absorbed;
-    this.hp -= real; this.hurtFlash = 0.1; this.hurtT = 0;
+    this.hp -= real; if (o.kind !== 'fire') this.hurtFlash = 0.1; this.hurtT = 0;
     if (o.kind === 'fire' && this.burn <= 0 && o.ignite !== false) this.burn = 3;
     if (o.ignite) this.burn = 3.5;
     if (this.team === 'enemy') { this.alert(lv); this.ai.react = 0; }
-    if (this.isPlayer()) { lv.hurtVignette = 0.6; Audio.play('hurt'); lv.shake(4); }
+    if (this.isPlayer()) { lv.hurtVignette = Math.max(lv.hurtVignette, o.kind === 'fire' ? 0.3 : 0.6); if (o.kind !== 'fire' || Math.random() < 0.3) Audio.play('hurt'); if (o.kind !== 'fire') lv.shake(4); }
     if (o.kind !== 'fire') {
       const bl = o.kind === 'melee' ? 8 : o.head ? 22 : 12;
       if (absorbed > real) lv.fx.spark(o.x, o.y, 6, -(o.dx || 0), -(o.dy || 0), '#ddd');

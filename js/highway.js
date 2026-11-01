@@ -71,7 +71,7 @@ function drawBike(c, x, y, rot, col) {
 }
 
 function setupHighway(lv) {
-  lv.vehicles = [];
+  lv.vehicles = []; lv.width = 1e9; lv.maxX = 1e9;
   const rv = new Vehicle('rv', 300, { team: 'player' }); rv.vx = 640; lv.rv = rv; lv.vehicles.push(rv);
   const roof = { x: rv.x + 20, y: GROUND - RV_ROOF, w: 330, h: 10, oneway: true, style: 'none' };
   lv.solids.push(roof); lv.roof = roof;

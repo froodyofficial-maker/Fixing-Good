@@ -32,7 +32,7 @@ const S = (who, text, expr) => [who, text, expr];
 const LEVELS = {
   // ---------------------------------------------------------------- PROLOGUE
   intro: {
-    theme: 'day', width: 2600, start: 260, walter: true, walterUnarmed: true, noHud: true, music: 'menu',
+    theme: 'day', width: 2600, start: 260, walter: true, walterUnarmed: true, noHud: true, unarmed: true, music: 'menu',
     build(L) {
       L.rv(1080, { foil: true });
       L.cactus(420, 120); L.cactus(1900, 90); L.cactus(2300, 140);
@@ -183,7 +183,7 @@ const LEVELS = {
   },
   // ---------------------------------------------------------------- CHAPTER 6
   goldenhen: {
-    theme: 'town', width: 2400, start: 300, walter: true, walterUnarmed: true, noHud: true, music: 'hub',
+    theme: 'town', width: 2400, start: 300, walter: true, walterUnarmed: true, noHud: true, unarmed: true, music: 'hub',
     npcs: [{ id: 'fenn', x: 1500, look: 'fenn', face: -1 }],
     build(L) {
       L.prop(c => { c.save(); c.fillStyle = '#f2e6c8'; c.fillRect(1180, GROUND - 300, 640, 300); c.fillStyle = '#c8302a'; c.fillRect(1180, GROUND - 300, 640, 40); c.fillStyle = '#ffd040'; c.font = 'bold 34px Oswald, sans-serif'; c.fillText('THE GOLDEN HEN', 1350, GROUND - 266); c.fillStyle = '#2a3540'; c.fillRect(1220, GROUND - 220, 240, 130); c.fillRect(1540, GROUND - 220, 240, 130); c.fillStyle = 'rgba(255,255,255,.2)'; c.fillRect(1225, GROUND - 215, 110, 120); c.fillRect(1545, GROUND - 215, 110, 120); c.fillStyle = '#ffd040'; c.beginPath(); c.arc(1500, GROUND - 330, 32, 0, TAU); c.fill(); c.fillStyle = '#c8302a'; c.beginPath(); c.moveTo(1490, GROUND - 362); c.lineTo(1500, GROUND - 380); c.lineTo(1510, GROUND - 362); c.fill(); c.restore(); });
@@ -209,7 +209,7 @@ const LEVELS = {
       for (const x of [300, 900, 1500, 2100]) L.light(x, 80, 380, '220,240,255', 0.7);
     },
     steps: [
-      { cine: true, do: lv => { lv.walter.look = LOOKS.walterHaz; lv.walter.x = 1340; lv.walter.frozen = true; lv.walter.facing = 1; lv.walter.invuln = false; lv.walter.guns = []; } },
+      { cine: true, do: lv => { lv.walter.look = LOOKS.walterHaz; lv.walter.x = 1340; lv.walter.frozen = true; lv.walter.facing = 1; lv.walter.invuln = false; lv.walter.guns = []; lv.walter.maxHp = lv.walter.hp = 1100; } },
       { wait: 1 },
       { say: [S('jace', 'This place is unreal, Mr. Black. It\'s like a spaceship made of money.', 'smile'), S('walter', 'Batch forty. Ninety-nine percent pure. Do you know what this means, Jace?', 'smile'), S('jace', 'That we\'re rich?'), S('walter', 'That we\'re irreplaceable.'), S('brewer', '(on the TV) ...DEA sources say a major lab is operating somewhere in the county...', 'neutral'), S('jace', 'Uh. Mr. Black? The service elevator just went down. By itself.', 'worried'), S('walter', 'The cartel. Keep them off me. I can\'t stop now or the whole batch is ruined.', 'angry')] },
       { cine: false, arena: [0, 2700], objective: 'Defend Walter while he cooks', music: 'action', do: lv => { lv.vars.cookT = 0; } },
@@ -241,7 +241,7 @@ const LEVELS = {
       { clear: true }, { cp: true }, { reach: 3000, spawn: [{ t: 'heavy', x: 3800 }, { t: 'rifleman', x: 3600 }, { t: 'smg', x: 3500 }, { t: 'gunner', from: 'left' }], banter: ['walter', 'Armored one! Use the barrels!'] },
       { clear: true }, { cp: true }, { reach: 4200, spawn: [{ t: 'rifleman', x: 4800, y: GROUND - 140 }, { t: 'shotgunner', x: 4900 }, { t: 'smg', x: 5000 }, { t: 'heavy', x: 5200 }, { t: 'thug', from: 'left' }] },
       { clear: true }, { cp: true },
-      { reach: 5100, arena: [4700, 6400], cine: true, spawn: [{ t: 'esteban', id: 'esteban', x: 6000, name: 'Don Esteban', alert: false }], do: lv => { lv.named.esteban.passive = true; lv.named.esteban.facing = -1; }, cam: 5700 },
+      { reach: 5100 }, { arena: [4700, 6400], cine: true, spawn: [{ t: 'esteban', id: 'esteban', x: 6000, name: 'Don Esteban', alert: false }], do: lv => { lv.named.esteban.passive = true; lv.named.esteban.facing = -1; }, cam: 5700 },
       { say: [S('esteban', 'So. Fenn sends his little cooks to my house. On my granddaughter\'s birthday.', 'angry'), S('esteban', 'I have killed men for parking in my spot, chemist.'), S('walter', 'Then you understand. This is business.'), S('esteban', 'Business? Bah. This is my land.', 'angry')] },
       { cam: null, cine: false, do: lv => lv.hostile(['esteban']), boss: 'esteban', music: 'boss', objective: 'Kill Don Esteban' },
       { spawn: [{ t: 'rifleman', from: 'right' }, { t: 'smg', from: 'left' }] }, { wait: 14 }, { spawn: [{ t: 'shotgunner', from: 'right' }, { t: 'rifleman', from: 'left' }] },
@@ -287,7 +287,7 @@ const LEVELS = {
       { say: [S('walterHat', 'You came back for me.'), S('jace', 'Of course I came back! What happened to your clothes?!', 'worried'), S('walterHat', 'They gave me these. I think I\'ll keep them.', 'smile'), S('walterHat', 'Dutch\'s car is out front. I had a... modification made, before all this. The trunk.'), S('jace', 'What\'s in the trunk?'), S('walterHat', 'An education.', 'angry')] },
       { do: lv => { const st = Game.state; if (!st.weapons.includes('mg')) { st.weapons.push('mg'); lv.player.guns.push(new Gun('mg')); } st.ammo['762'] += 300; lv.player.gi = lv.player.guns.findIndex(g => g.key === 'mg'); lv.toast('NEW WEAPON: M60 "Trunk Gun"'); Game.state.walterBangs = true; } },
       { cine: false, objective: 'Kill Uncle Dutch', cp: true },
-      { reach: 4500, arena: [4300, 6000], cine: true, spawn: [{ t: 'dutch', id: 'dutch', x: 5500, name: 'Uncle Dutch', alert: false }], do: lv => { lv.named.dutch.passive = true; lv.named.dutch.facing = -1; }, cam: 5150 },
+      { reach: 4500 }, { arena: [4300, 6000], cine: true, spawn: [{ t: 'dutch', id: 'dutch', x: 5500, name: 'Uncle Dutch', alert: false }], do: lv => { lv.named.dutch.passive = true; lv.named.dutch.facing = -1; }, cam: 5150 },
       { say: [S('dutch', 'Well, look at that. The canary got out.', 'smile'), S('walterHat', 'You took something that belongs to me.'), S('dutch', 'Belongs to you? Professor, out here things belong to whoever\'s holding \'em.', 'angry'), S('walterHat', 'Then hold on tight.', 'angry')] },
       { cam: null, cine: false, do: lv => lv.hostile(['dutch']), boss: 'dutch', music: 'boss' },
       { spawn: [{ t: 'rifleman', from: 'right' }, { t: 'smg', from: 'left' }, { t: 'shotgunner', from: 'right' }] }, { wait: 12 }, { spawn: [{ t: 'heavy', from: 'right' }, { t: 'smg', from: 'left' }] }, { wait: 14 }, { spawn: [{ t: 'rifleman', from: 'left' }, { t: 'shotgunner', from: 'right' }] },

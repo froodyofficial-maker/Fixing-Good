@@ -62,7 +62,7 @@ class FX {
     }
   }
   decalHole(x, y) { if (!this.dc) return; const c = this.dc; c.fillStyle = 'rgba(0,0,0,.75)'; c.beginPath(); c.arc(x, y, 2.4, 0, TAU); c.fill(); c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 1; c.beginPath(); c.arc(x, y, 3.5, 0, TAU); c.stroke(); }
-  decalScorch(x, y, r) { if (!this.dc) return; const c = this.dc; const g = c.createRadialGradient(x, y, 2, x, y, r); g.addColorStop(0, 'rgba(10,8,6,.85)'); g.addColorStop(1, 'rgba(10,8,6,0)'); c.fillStyle = g; c.beginPath(); c.ellipse(x, y, r, r * 0.3, 0, 0, TAU); c.fill(); }
+  decalScorch(x, y, r) { if (!this.dc) return; const c = this.dc; const g = c.createRadialGradient(x, y, 2, x, y, r); g.addColorStop(0, 'rgba(10,8,6,.85)'); g.addColorStop(1, 'rgba(10,8,6,0)'); c.fillStyle = g; c.save(); c.translate(x, y); c.scale(1, 0.12); c.beginPath(); c.arc(0, 0, r, 0, TAU); c.fill(); c.restore(); }
   decalSpray(x, y, dx, dy) { // exit-wound spray on a wall behind the target
     if (!this.dc || this.gore() < 2) return; const c = this.dc;
     for (let i = 0; i < 14; i++) { const d = rand(0, 26); c.fillStyle = `rgba(${randi(100, 140)},0,0,${rand(0.4, 0.8)})`; c.beginPath(); c.arc(x + dx * d + rand(-6, 6), y + dy * d + rand(-6, 6), rand(1, 3.5), 0, TAU); c.fill(); }

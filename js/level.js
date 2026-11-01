@@ -13,7 +13,7 @@ class Level {
     this.named = {}; this.minX = 0; this.maxX = this.width;
     this.fx = new FX(this);
     this.cam = { x: 0, y: 0, shake: 0, target: null };
-    this.Z = def.zoom || 1.2; this.VW = W / this.Z; this.OFFY = GROUND * this.Z - 652; // world->screen: (x-camX)*Z, y*Z-OFFY
+    this.Z = def.zoom || 1.2; this.VW = W / this.Z; this.OFFY = GROUND * this.Z - 640; // world->screen: (x-camX)*Z, y*Z-OFFY
     this.time = 0; this.stepI = 0; this.stepStarted = false; this.stepT = 0; this.vars = {};
     this.dialog = null; this.banters = []; this.toasts = []; this.objective = ''; this.bossId = null; this.title = null;
     this.cinematic = false; this.letterbox = 0; this.fade = opts.fadeIn === false ? 0 : 1; this.fadeTarget = 0;
@@ -52,7 +52,7 @@ class Level {
     const d = this.def, st = Game.state;
     const startX = this.checkpoint ? this.checkpoint.x : (d.start || 160);
     if (!d.noPlayer) {
-      const guns = st.weapons.slice();
+      const guns = d.unarmed ? [] : st.weapons.slice();
       const p = new Actor({ kind: 'player', team: 'player', x: startX, look: d.playerLook || 'jace', guns, armor: st.armor, id: 'player' });
       p.maxHp = 100 + (st.upgrades.health ? 40 : 0); p.hp = p.maxHp;
       p.reloadMul = st.upgrades.reload ? 0.72 : 1;
@@ -192,7 +192,7 @@ class Level {
     this.fx.light(x, y - 20, r * 3.2, '255,160,60', 1, 0.5);
     for (let i = 0; i < (o.small ? 18 : 46); i++) { const a = rand(TAU), sp = rand(60, 420); this.fx.add({ t: 'fire', x: x + Math.cos(a) * 10, y: y + Math.sin(a) * 10, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, life: rand(0.3, 0.8), max: 0.8, s: rand(10, 26) }); }
     this.fx.smoke(x, y - 20, o.small ? 8 : 20, 26, 0.8, -60); this.fx.spark(x, y, 20, 0, -1, '#ffb040'); this.fx.debris(x, y, 10, '#3a3a3a');
-    this.fx.decalScorch(x, Math.min(GROUND + 4, y + 10), r * 0.7);
+    this.fx.decalScorch(x, y > GROUND - 120 ? GROUND + 6 : y + 10, r * 0.8);
     for (const a of this.actors) {
       if (!a.alive || a.downed > 0) continue;
       const c = a.center(), d = Math.hypot(c[0] - x, c[1] - y); if (d > r) continue;
@@ -311,7 +311,7 @@ class Level {
     if (s.reach !== undefined && (!this.player || this.player.x < s.reach)) return false;
     if (s.clear && this.enemiesAlive() > 0) return false;
     if (s.until && !s.until(this)) return false;
-    if (s.walk && s.walk[3] !== false) { const a = this.named[s.walk[0]]; if (a && Math.abs(a.x - s.walk[1]) > 8) return false; }
+    if (s.walk && s.walk[3] !== false) { const a = this.named[s.walk[0]]; if (a && Math.abs(a.x - s.walk[1]) > 8) { if (this.stepT < 7) return false; a.x = s.walk[1]; a.cine = null; a.cineLower = false; } }
     if (s.fade && Math.abs(this.fade - this.fadeTarget) > 0.02) return false;
     return true;
   }
@@ -372,7 +372,7 @@ class Level {
     const sx = rand(-sh, sh) * 0.6, sy = rand(-sh, sh) * 0.6;
     c.save(); c.translate(sx, sy);
     const Z = this.Z, VW = this.VW;
-    drawBackdrop(c, this.theme, camX * Z, 652 - GROUND);
+    drawBackdrop(c, this.theme, camX * Z, 640 - GROUND);
     if (this.drawBackExtra) this.drawBackExtra(c, camX);
     c.save(); c.translate(0, -this.OFFY); c.scale(Z, Z); c.translate(-camX, 0);
     { const g = this.theme.ground, gw = g.width; for (let x = Math.floor(camX / gw) * gw; x < camX + VW + 2; x += gw) c.drawImage(g, x, GROUND); }
@@ -452,7 +452,7 @@ class Level {
   drawHUD(c) {
     const p = this.player, st = Game.state;
     // letterbox
-    if (this.letterbox > 0.01) { const h = 70 * this.letterbox; c.fillStyle = '#000'; c.fillRect(0, 0, W, h); c.fillRect(0, H - h, W, h); }
+    if (this.letterbox > 0.01) { const h = 70 * this.letterbox; c.fillStyle = '#000'; c.fillRect(0, 0, W, h); c.fillRect(0, H - h * 0.8, W, h); }
     // hurt vignette
     if (p && (this.hurtVignette > 0 || p.hp < p.maxHp * 0.35)) {
       const a = Math.max(this.hurtVignette, p.hp < p.maxHp * 0.35 ? 0.35 + Math.sin(this.time * 6) * 0.1 : 0);
@@ -521,7 +521,8 @@ class Level {
     }
     // toasts
     c.textAlign = 'center';
-    this.toasts.forEach((t, i) => { c.globalAlpha = Math.min(1, t.life * 2); c.font = 'bold 17px "Oswald", Impact, sans-serif'; c.fillStyle = '#000'; c.fillText(t.t, W / 2 + 1, H - 128 - i * 24 + 1 - (this.walter ? 20 : 0)); c.fillStyle = '#ffe9a8'; c.fillText(t.t, W / 2, H - 128 - i * 24 - (this.walter ? 20 : 0)); });
+    const ty = (boss && boss.alive) || this.rv ? 140 : 96;
+    this.toasts.forEach((t, i) => { c.globalAlpha = Math.min(1, t.life * 2); c.font = 'bold 18px "Oswald", Impact, sans-serif'; c.fillStyle = '#000'; c.fillText(t.t, W / 2 + 1, ty + i * 26 + 1); c.fillStyle = '#ffe9a8'; c.fillText(t.t, W / 2, ty + i * 26); });
     c.globalAlpha = 1; c.textAlign = 'left';
     // chapter title card
     if (this.title) {
@@ -570,7 +571,7 @@ class Dialogue {
   draw(c) {
     if (this.finished) return;
     const [who, text, expr] = this.line, look = LOOKS[who];
-    const x = 90, y = H - 196, w = W - 180, h = 150;
+    const x = 90, y = 82, w = W - 180, h = 150;
     c.fillStyle = 'rgba(8,8,10,.86)'; rrect(c, x, y, w, h, 12); c.fill(); c.strokeStyle = 'rgba(255,220,140,.35)'; c.lineWidth = 2; c.stroke();
     let tx = x + 26;
     if (look) { drawPortrait(c, x + 14, y + 12, 126, look, expr || 'neutral'); tx = x + 160; }
