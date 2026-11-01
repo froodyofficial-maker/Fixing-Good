@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fixing Good</title>
+<meta name="description" content="Fixing Good: a desert crime action game. Cook, trade, and shoot your way across the county in a beat-up RV.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #050505; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; cursor: none; image-rendering: auto; touch-action: none; }
+  #nojs { color: #ccc; font: 16px sans-serif; position: absolute; }
+</style>
+</head>
+<body>
+<canvas id="game" width="1280" height="720"></canvas>
+<noscript><div id="nojs">Fixing Good needs JavaScript.</div></noscript>
+<!--GAME-SCRIPTS-->
+<script src="js/core.js"></script>
+<script src="js/art.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/actors.js"></script>
+<script src="js/level.js"></script>
+<script src="js/highway.js"></script>
+<script src="js/story.js"></script>
+<script src="js/scenes.js"></script>
+<script src="js/main.js"></script>
+<!--/GAME-SCRIPTS-->
+</body>
+</html>
