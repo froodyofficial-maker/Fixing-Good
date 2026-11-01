@@ -6,6 +6,15 @@ A side-scrolling desert crime action game. You play **Jace Pinkett**, a small-ti
 
 Everything is drawn and synthesized in code: every character, gun, explosion, sound effect and music note. There are no image or audio files.
 
+## Two versions
+
+| | How to play | What it is |
+|---|---|---|
+| **2D** | open `dist/fixing-good.html` | The original side-scroller |
+| **3D** | open `3d/dist/fixing-good-3d.html` | A third-person shooter built on three.js: same story, characters, trading and cooking, all in 3D |
+
+Both are single self-contained files that run straight from disk. The sections below describe the 2D version; the 3D version is described in [3D version](#3d-version).
+
 ## Play
 
 - **Easiest:** open `dist/fixing-good.html` in any modern browser. It's one self-contained file and runs straight from disk.
@@ -98,3 +107,25 @@ Dev shortcuts (append to the URL): `?level=junkyard`, `?scene=hub|cook|dusty|tra
 Fixing Good is an original parody. All characters, places and organizations are fictional, and the "chemistry" in the cooking minigame is made up.
 
 Font: [Oswald](https://fonts.google.com/specimen/Oswald) (SIL Open Font License), loaded from Google Fonts. Offline, the game falls back to a system font.
+
+## 3D version
+
+`3d/` is a separate third-person build of the game.
+
+- **Play:** open `3d/dist/fixing-good-3d.html`. Click the game to capture the mouse.
+- **Look and feel:** an over-the-shoulder camera with aim-down-sights (hold right-click), sprint, crouch, jump and dodge-roll.
+- **Characters:** procedural 3D characters built from the same looks as the 2D game (Walter's glasses and goatee, Jace's beanie). They have walk/run/strafe cycles, IK arms on the guns, and keyframed 3D reloads: mags drop and bounce, revolver brass spills, shells load one at a time, and the M60 gets a new ammo box.
+- **Combat:** hitscan gunplay with tracers, muzzle flashes, casings, bullet holes and blood decals. Ragdolls can lose heads and limbs to heavy hits and explosions. There are exploding barrels, Molotov fires, Bang Crystals and the gun-mounted flashlight in the warehouse.
+- **Content:** all eight chapters as 3D levels with in-engine cutscenes, plus the RV-roof highway chase where the desert streams past at speed. The title menu, RV camp, drives, street trading and the cook are 3D scenes; the hub map, shops and side jobs use the same screens as the 2D version.
+
+| Key | Action |
+|---|---|
+| W A S D / Mouse | Move / look |
+| Left click / Right click (hold) | Shoot / aim down sights |
+| Shift / Space / C / X | Sprint / jump / crouch / dodge roll |
+| R / F / E | Reload / melee combo / interact |
+| 1–6, wheel, Q | Switch weapon |
+| G / V / H | Bang Crystal / Molotov / medkit |
+| Esc | Pause |
+
+To rebuild after editing `3d/src/`, run these from `3d/`: `npm install`, then `node build.mjs`. Dev shortcuts: `?level=junkyard`, `?scene=hub|cook|trade|camp|drive|jobs|ending`, `&god`, `&ch=4`, `&speed=3`, `&lowres`.

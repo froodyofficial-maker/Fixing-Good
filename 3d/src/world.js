@@ -41,6 +41,7 @@ export class Level {
     this.build();
     if (this.checkpoint) this.stepI = this.checkpoint.step;
     this.spawnHeroes();
+    if (def.flashlight) { this.torch = new THREE.SpotLight(0xfff2d8, 60, 45, 0.42, 0.45, 1.4); this.torch.castShadow = true; this.torch.shadow.mapSize.set(512, 512); scene.add(this.torch); scene.add(this.torch.target); }
     this.updateCamera(1, true);
   }
   // ---------- building ----------
@@ -70,7 +71,7 @@ export class Level {
       neon: (x, y, z, text, color = '#ff6aa0', ry = 0) => { const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 192; const c = cv.getContext('2d'); c.fillStyle = '#111'; c.fillRect(0, 0, 1024, 192); c.shadowColor = color; c.shadowBlur = 30; c.strokeStyle = color; c.lineWidth = 8; c.strokeRect(12, 12, 1000, 168); c.fillStyle = color; c.font = 'bold 110px Oswald, Impact, sans-serif'; c.textAlign = 'center'; c.fillText(text, 512, 140); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; const p = new THREE.Mesh(new THREE.PlaneGeometry(8, 1.5), new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 1.2 })); place(p, x, z, y, ry); api.light(x, y, z + 1.5, new THREE.Color(color).getHex(), 16, 18); },
       fire: (x, z, w = 1.5, life = 9999) => L.fires.push({ p: V3(x, 0, z), w, t: life }),
       pickup: (x, z, kind, type, amount) => L.addPickup(V3(x, 0.3, z), kind, type, amount),
-      interact: (x, z, text, fn) => L.interacts.push({ p: V3(x, 0, z), text, fn, done: false }),
+      interact: (x, z, text, fn) => { const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.15, 32), new THREE.MeshBasicMaterial({ color: 0xffd060, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); ring.rotation.x = -PI / 2; ring.position.set(x, 0.03, z); scene.add(ring); const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.14), new THREE.MeshBasicMaterial({ color: 0xffd060 })); gem.position.set(x, 2.1, z); scene.add(gem); L.interacts.push({ p: V3(x, 0, z), text, fn, done: false, ring, gem }); },
       room: (style, h = 9) => { const m = L._mat('room' + style, 0xffffff, style === 'lab' ? Tex.panel() : Tex.brick()); m.map.repeat.set(this.len / 8, 2); m.side = THREE.BackSide; const r = new THREE.Mesh(new THREE.BoxGeometry(this.len + 20, h, this.half * 2 + 6), m); r.position.set(this.len / 2, h / 2 - 0.01, 0); r.receiveShadow = true; scene.add(r); const ceil = new THREE.Mesh(new THREE.PlaneGeometry(this.len + 20, this.half * 2 + 6), col('ceil', 0x2a2c30)); ceil.rotation.x = PI / 2; ceil.position.set(this.len / 2, h - 0.05, 0); scene.add(ceil); for (let x = 6; x < this.len; x += 14) { const beam = box(0.4, 0.5, this.half * 2 + 6, col('beam', 0x3a3e42, { metalness: 0.6 }), x, h - 0.4, 0); scene.add(beam); } },
       prop: fn => fn(scene, L),
     };
@@ -427,7 +428,7 @@ export class Level {
     this.camShake = Math.max(0, this.camShake - dt * 3);
     if (camera.fov !== this.fov) { camera.fov = this.fov; camera.updateProjectionMatrix(); }
     this.camPos.copy(camera.position);
-    for (const a of this.actors) { const near = a.center().distanceTo(this.camPos) < 1.0 || a.J.head.distanceTo(this.camPos) < 0.55; a.body.group.visible = !near; a.gunHolder.visible = a.gunHolder.visible && !near; }
+    for (const a of this.actors) { const near = !a.isPlayer() ? a.center().distanceTo(this.camPos) < 1.9 : (a.center().distanceTo(this.camPos) < 0.9 || a.J.head.distanceTo(this.camPos) < 0.55); a.body.group.visible = !near; a.gunHolder.visible = a.gunHolder.visible && !near; }
     placeSun(p ? p.pos : V3(this.len / 2, 0, 0));
     // aim point: what the crosshair is over
     if (p && !this.cinematic) {
@@ -513,9 +514,11 @@ export class Level {
     this.fade = lerp(this.fade, this.fadeTarget, Math.min(1, rdt * 3)); if (Math.abs(this.fade - this.fadeTarget) < 0.01) this.fade = this.fadeTarget;
     if (this.failed) this.failT += rdt;
     this.prompt = null;
-    if (this.player && this.player.alive && !this.cinematic) for (const it of this.interacts) { if (it.done) continue; if (Math.hypot(this.player.pos.x - it.p.x, this.player.pos.z - it.p.z) < 1.8) { this.prompt = it; if (Input.hit('KeyE')) { it.done = true; it.fn(this); } break; } }
+    for (const it of this.interacts) if (!it.done && it.gem) { it.gem.rotation.y += rdt * 2; it.gem.position.y = 2.1 + Math.sin(this.time * 3) * 0.12; it.ring.material.opacity = 0.4 + Math.sin(this.time * 5) * 0.2; }
+    if (this.player && this.player.alive && !this.cinematic) for (const it of this.interacts) { if (it.done) continue; if (Math.hypot(this.player.pos.x - it.p.x, this.player.pos.z - it.p.z) < 2.8) { this.prompt = it; if (Input.hit('KeyE')) { it.done = true; if (it.ring) { scene.remove(it.ring); scene.remove(it.gem); } it.fn(this); } break; } }
     if (this.def.failIf && !this.failed && !this.done) { const r = this.def.failIf(this); if (r) { this.failed = true; this.failT = 0; this.failReason = r; Audio.play('bad'); } }
     this.updateCamera(rdt);
+    if (this.torch && this.player) { this.torch.position.copy(this.player.gunPoint('muzzle')); if (this.aimPoint) this.torch.target.position.copy(this.aimPoint); else this.torch.target.position.copy(this.player.pos).add(V3(Math.sin(this.player.yaw) * 10, 1, Math.cos(this.player.yaw) * 10)); }
   }
   project(p) { const v = p.clone().project(camera); return v.z > 1 ? null : [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H]; }
   dispose() { clearScene(); }
@@ -577,6 +580,7 @@ export class Level {
     if (this.title) { const t = this.title.t, a = t < 0.6 ? t / 0.6 : t > 3.2 ? Math.max(0, 1 - (t - 3.2) / 0.8) : 1; c.globalAlpha = a; c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(0, H / 2 - 70, W, 140); c.textAlign = 'center'; c.font = `18px ${FONT}`; c.fillStyle = '#9fd88a'; c.fillText(this.title.sub, W / 2, H / 2 - 28); c.font = `bold 54px ${FONT}`; c.fillStyle = '#fff'; c.fillText(this.title.text, W / 2, H / 2 + 28); c.textAlign = 'left'; c.globalAlpha = 1; }
     if (this.dialog) this.dialog.draw(c);
     if (showHud && p.alive) this.drawCrosshair(c, p);
+    if (this.vars.alarm) { c.fillStyle = `rgba(255,0,0,${0.07 + Math.sin(this.time * 8) * 0.05})`; c.fillRect(0, 0, W, H); }
     if (this.fade > 0.001) { c.fillStyle = `rgba(0,0,0,${this.fade})`; c.fillRect(0, 0, W, H); }
   }
   drawCrosshair(c, p) {

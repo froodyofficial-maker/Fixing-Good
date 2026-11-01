@@ -229,7 +229,7 @@ export class DriveScene {
     for (const p of this.props) { p.position.x -= 22 * dt; if (p.position.x < -120) p.position.x += 240; }
     this.rv.position.y = Math.sin(this.t * 12) * 0.02; this.rv.traverse(o => { if (o.name === 'wheel') o.rotation.z -= dt * 44; });
     if (Math.random() < 0.6) this.d.fx.dust(V3(-0.3, 0, rand(-1, 1)), 1);
-    const a = this.t * 0.15; this.d.cam(V3(6 + Math.sin(a) * 4, 2.2, 11), V3(4.5, 1.4, 0), 50);
+    const a = this.t * 0.15; this.d.cam(V3(8 + Math.sin(a) * 4, 3.2, 16), V3(4.2, 1.6, 0), 45);
     if (this.t > 0.3 && Math.round(this.t * 3) % 2 === 0 && !this._e) { this._e = true; Audio.play('engine', 0, 0.3); } if (Math.round(this.t * 3) % 2 === 1) this._e = false;
     if (this.t > 3.6 || (this.t > 0.4 && (Input.mclick || Input.hit('Space') || Input.hit('Enter')))) { Input.mclick = false; this.done(); }
   }
@@ -303,7 +303,7 @@ function tradeDiorama(scn) {
   const ct = car(0x5a3a6a); ct.position.set(-9, 0, 2.5); scene.add(ct);
   d.actor('jace', -6.5, -1.5, PI / 2 - 0.3);
   scn.buyerActors = scn.buyers.map((b, i) => d.actor(b.look, -2.2 + i * 4.2, -2.8 + (i % 2) * 0.4, -0.3 - i * 0.15));
-  d.cam(V3(-1, 2.1, 7.5), V3(1, 1.3, -2), 52);
+  d.cam(V3(1.5, 3.4, 10.5), V3(2.2, 2.6, -2), 50);
 }
 function labDiorama(scn) {
   const d = scn.d = new Diorama('lab', { noTerrain: true });
