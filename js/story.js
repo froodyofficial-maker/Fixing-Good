@@ -298,6 +298,14 @@ const LEVELS = {
     ]
   },
   // ---------------------------------------------------------------- SIDE: random ambush
+  alley: {
+    theme: 'southside', width: 1900, start: 700, walter: false, music: 'action', enemyLook: 'thug', dark: 0.5,
+    build(L) { L.crate(300, 60, 56, 'cardboard'); L.prop(c => { c.fillStyle = '#2a3a2a'; c.fillRect(1100, GROUND - 70, 120, 70); c.strokeStyle = INK; c.lineWidth = 3; c.strokeRect(1100, GROUND - 70, 120, 70); }); L.crate(1100, 120, 70, 'none'); L.lamp(520, 240); L.lamp(1400, 240); L.barrel(1600, 'red'); },
+    steps: [
+      { objective: 'Don\'t get robbed', spawn: [{ t: 'knifer', x: 900 }, { t: 'thug', x: 1000 }, { t: 'thug', x: 400 }] },
+      { clear: true }, { wait: 0.8 }, { banter: ['jace', 'Anybody else want to rob me? No? Cool.'] }, { wait: 1.5 }, { end: true },
+    ]
+  },
   ambush: {
     theme: 'highway', width: 90000, start: 480, mode: 'highway', zoom: 1, noDecals: true, music: 'action', enemyLook: 'biker',
     steps: [

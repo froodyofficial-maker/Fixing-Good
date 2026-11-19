@@ -50,7 +50,7 @@ class LoadingScene {
   constructor() {
     this.steps = buildThemes(); this.i = 0; this.t = 0; this.p = 0; this.ready = false; this.smoke = smokeField(26, 4); this.fontsOk = false;
     this.labels = ['Measuring reagents', 'Polishing the RV', 'Cleaning Walter\'s glasses', 'Loading the desert', 'Counting cash', 'Painting the mesas', 'Hiding from the DEA', 'Sharpening the plot', 'Teaching Jace chemistry', 'Calibrating gunfire', 'Spilling blood (fake)', 'Rolling credits'];
-    this.tips = ['TIP: Shotguns load one shell at a time. Click to fire mid-reload.', 'TIP: Headshots deal 2.6× damage. Armored enemies hate them.', 'TIP: Shoot red barrels. Walter says it\'s "basic thermodynamics."', 'TIP: Roll with Shift to dodge bullets.', 'TIP: Higher purity means buyers pay more. Nail the cook minigame.', 'TIP: Undercover cops ask too many questions. Heat attracts trouble.', 'TIP: Sneak up on guards who haven\'t seen you for a one-punch takedown.'];
+    this.tips = ['TIP: Shotguns load one shell at a time. Click to fire mid-reload.', 'TIP: Headshots deal 2.6× damage. Armored enemies hate them.', 'TIP: Shoot red barrels. Walter says it\'s "basic thermodynamics."', 'TIP: Roll with Shift to dodge bullets.', 'TIP: Higher purity means buyers pay more. Nail the cook minigame.', 'TIP: Undercover cops ask too many questions. Heat attracts trouble.', 'TIP: Sneak up on guards who haven\'t seen you for a one-punch takedown.', 'TIP: Press TAB during any conversation to skip all dialogue for the mission.', 'TIP: Read a buyer before you deal. Brand-new sneakers and too many questions mean cop.', 'TIP: Keep your corner dealers stocked. They sell while you sleep.'];
     this.tip = choose(this.tips);
     if (document.fonts && document.fonts.load) { Promise.race([document.fonts.load('bold 40px Oswald'), new Promise(r => setTimeout(r, 2500))]).then(() => this.fontsOk = true, () => this.fontsOk = true); } else this.fontsOk = true;
   }
@@ -86,20 +86,21 @@ class LoadingScene {
 
 // ---------------------------------------------------------------- SETTINGS / CONTROLS overlays
 function drawSettings(c, close) {
-  UI.panel(c, W / 2 - 260, 140, 520, 430, 0.95);
+  UI.panel(c, W / 2 - 260, 120, 520, 500, 0.95);
   UI.text(c, 'SETTINGS', W / 2, 190, 30, '#fff', 'center', true);
   const row = (y, label, val, fn) => { UI.text(c, label, W / 2 - 220, y + 28, 18, '#ddd'); if (UI.btn(c, W / 2 + 40, y, 180, 42, val)) fn(); };
   row(220, 'Sound volume', Math.round(Settings.volume * 100) + '%', () => { Settings.volume = (Settings.volume + 0.2) > 1.01 ? 0 : Settings.volume + 0.2; Audio.applyVolume(); });
   row(272, 'Music volume', Math.round(Settings.music * 100) + '%', () => { Settings.music = (Settings.music + 0.25) > 1.01 ? 0 : Settings.music + 0.25; Audio.applyVolume(); });
   row(324, 'Screen shake', Settings.shake ? 'ON' : 'OFF', () => Settings.shake = Settings.shake ? 0 : 1);
   row(376, 'Blood & gore', ['OFF', 'LOW', 'FULL'][Settings.gore], () => Settings.gore = (Settings.gore + 1) % 3);
-  if (Game.state) row(428, 'Difficulty', Game.state.difficulty.toUpperCase(), () => { const d = ['easy', 'normal', 'hard']; Game.state.difficulty = d[(d.indexOf(Game.state.difficulty) + 1) % 3]; });
-  if (UI.btn(c, W / 2 - 90, 500, 180, 46, 'BACK') || Input.hit('Escape')) { store('settings', Settings); close(); }
+  row(428, 'Story dialogue', Settings.dialogue === 'skip' ? 'SKIP ALL' : 'SHOW', () => Settings.dialogue = Settings.dialogue === 'skip' ? 'show' : 'skip');
+  if (Game.state) row(480, 'Difficulty', Game.state.difficulty.toUpperCase(), () => { const d = ['easy', 'normal', 'hard']; Game.state.difficulty = d[(d.indexOf(Game.state.difficulty) + 1) % 3]; });
+  if (UI.btn(c, W / 2 - 90, 548, 180, 46, 'BACK') || Input.hit('Escape')) { store('settings', Settings); close(); }
 }
 function drawControls(c, close) {
   UI.panel(c, W / 2 - 340, 90, 680, 540, 0.95);
   UI.text(c, 'CONTROLS', W / 2, 140, 30, '#fff', 'center', true);
-  const rows = [['A / D', 'Move'], ['W / Space', 'Jump'], ['S (hold)', 'Crouch · S+Space drops through platforms'], ['Shift', 'Dodge roll (dodges bullets)'], ['Mouse', 'Aim'], ['Left click', 'Shoot (hold for automatics)'], ['R', 'Reload'], ['F / Right click', 'Melee: jab → cross → kick combo'], ['1–6 · Wheel · Q', 'Switch weapon / last weapon'], ['G', 'Throw Bang Crystal (explosive)'], ['V', 'Throw Molotov'], ['H', 'Use medkit'], ['E', 'Interact'], ['Space / Click', 'Advance dialogue'], ['Esc', 'Pause']];
+  const rows = [['A / D', 'Move'], ['W / Space', 'Jump'], ['S (hold)', 'Crouch · S+Space drops through platforms'], ['Shift', 'Dodge roll (dodges bullets)'], ['Mouse', 'Aim'], ['Left click', 'Shoot (hold for automatics)'], ['R', 'Reload'], ['F / Right click', 'Melee: jab → cross → kick combo'], ['1–6 · Wheel · Q', 'Switch weapon / last weapon'], ['G', 'Throw Bang Crystal (explosive)'], ['V', 'Throw Molotov'], ['H', 'Use medkit'], ['E', 'Interact'], ['Space · Enter · Tab', 'Next line · skip conversation · skip ALL dialogue'], ['Esc', 'Pause']];
   rows.forEach(([k, v], i) => { const y = 180 + i * 28; c.fillStyle = 'rgba(255,255,255,.06)'; if (i % 2) c.fillRect(W / 2 - 310, y - 19, 620, 28); UI.text(c, k, W / 2 - 290, y, 17, '#ffd060', 'left', true); UI.text(c, v, W / 2 - 100, y, 17, '#ddd'); });
   if (UI.btn(c, W / 2 - 90, 610 - 34, 180, 44, 'BACK') || Input.hit('Escape')) close();
 }
@@ -253,7 +254,11 @@ function choose0(arr, lv) { return arr[Math.floor(lv.def.width) % arr.length]; }
 // ---------------------------------------------------------------- HUB MAP
 const NODES = {
   rv: { x: 290, y: 440, name: 'RV Camp', sub: 'Cook · rest · stash', icon: 'rv' },
-  streets: { x: 640, y: 340, name: 'Del Sombra Streets', sub: 'Sell product to buyers', icon: 'deal' },
+  streets: { x: 640, y: 340, name: 'Downtown', sub: 'Deal on the street', icon: 'deal' },
+  south: { x: 760, y: 520, name: 'Southside Projects', sub: 'Deal: busy, poor, dangerous', icon: 'deal' },
+  campus: { x: 470, y: 300, name: 'University Row', sub: 'Deal: rich kids, campus cops', icon: 'deal' },
+  truck: { x: 360, y: 560, name: 'Route 9 Truck Stop', sub: 'Deal: bulk buyers', icon: 'deal' },
+  casino: { x: 1000, y: 430, name: 'Silver Spur Strip', sub: 'Deal: high rollers, high heat', icon: 'deal' },
   dusty: { x: 790, y: 430, name: "Dusty's Pawn & Guns", sub: 'Weapons · ammo · armor · upgrades', icon: 'gun' },
   hardware: { x: 520, y: 470, name: 'Hardware Barn', sub: 'Precursor · lab gear', icon: 'chem' },
   morty: { x: 720, y: 250, name: 'Morty Goodfellow, Esq.', sub: 'Lose some heat (for a fee)', icon: 'law' },
@@ -265,7 +270,7 @@ const NODES = {
   ranch: { x: 1160, y: 660, name: 'Rancho Esteban', sub: 'Across the border', icon: 'story' },
   compound: { x: 210, y: 230, name: 'Dust Dogs Compound', sub: 'Uncle Dutch\'s place', icon: 'story' },
 };
-const ROADS = [['rv', 'hardware'], ['hardware', 'streets'], ['streets', 'dusty'], ['streets', 'morty'], ['morty', 'hen'], ['streets', 'junk'], ['dusty', 'chem'], ['chem', 'motel'], ['hardware', 'road'], ['motel', 'ranch'], ['rv', 'compound'], ['junk', 'motel'], ['hen', 'compound']];
+const ROADS = [['streets', 'campus'], ['dusty', 'south'], ['road', 'truck'], ['dusty', 'casino'], ['rv', 'hardware'], ['hardware', 'streets'], ['streets', 'dusty'], ['streets', 'morty'], ['morty', 'hen'], ['streets', 'junk'], ['dusty', 'chem'], ['chem', 'motel'], ['hardware', 'road'], ['motel', 'ranch'], ['rv', 'compound'], ['junk', 'motel'], ['hen', 'compound']];
 let MAP_CANVAS = null;
 function buildMap() {
   const cv = makeCanvas(W, H), c = cv.getContext('2d'), r = srand(77);
@@ -306,16 +311,16 @@ function drawNodeIcon(c, kind, x, y, s = 1) {
 }
 class HubScene {
   constructor(o = {}) { this.t = 0; this.sel = null; this.msg = o.message || null; this.msgTitle = o.title || null; this.popup = o.popup || null; this.overlay = null; if (!MAP_CANVAS) MAP_CANVAS = buildMap(); }
-  enter() { Audio.music('hub'); Game.save(); Game.level = null; }
+  enter() { Audio.music('hub'); const st = dealState(); if (!this.msg && st.news && st.news.length && st.newsShown !== st.day) { st.newsShown = st.day; this.msg = st.news.slice(0, 5).join('  •  '); this.msgTitle = 'MORNING REPORT · DAY ' + st.day; } Game.save(); Game.level = null; }
   storyNode() { const C = CHAPTERS[Game.state.chapter]; return C ? C.node : null; }
-  visible(k) { const n = NODES[k]; if (n.icon !== 'story') return Game.state.chapter >= 1 || k === 'rv'; return k === this.storyNode(); }
+  visible(k) { const n = NODES[k], st = dealState(); if (n.icon === 'deal') return DISTRICTS[k].unlock(st); if (n.icon !== 'story') return st.chapter >= 1 || k === 'rv'; return k === this.storyNode(); }
   update(dt) { this.t += dt; if (Input.hit('Escape')) { if (this.overlay) this.overlay = null; else this.overlay = 'pause'; } }
   travel(k) {
     const st = Game.state, n = NODES[k];
     const go = () => {
       if (n.icon === 'story') { if (k === 'rv' && CHAPTERS[st.chapter] && CHAPTERS[st.chapter].node === 'rv') return Story.play(st.chapter); return Story.play(st.chapter); }
       if (k === 'rv') return Game.setScene(new CampScene());
-      if (k === 'streets') return Game.setScene(new TradeScene());
+      if (NODES[k].icon === 'deal') return Game.setScene(new DistrictScene(k));
       if (k === 'dusty') return Game.setScene(new ShopScene('dusty'));
       if (k === 'hardware') return Game.setScene(new ShopScene('hardware'));
       if (k === 'morty') return Game.setScene(new ShopScene('morty'));
@@ -354,7 +359,7 @@ class HubScene {
     // top bar
     c.fillStyle = 'rgba(15,12,8,.85)'; c.fillRect(0, 0, W, 54);
     drawLogo(c, 14, 6, 0.19);
-    const items = [['CASH', fmtMoney(st.money), '#8fe07a'], ['PRODUCT', st.bags + ' bags' + (st.bags ? ' · ' + st.purity.toFixed(1) + '%' : ''), '#7fd8f0'], ['PRECURSOR', st.precursor + ' units', '#c8b0f0'], ['HEAT', Math.round(st.heat) + '%', st.heat > 60 ? '#ff6040' : st.heat > 30 ? '#f0b040' : '#ddd'], ['DAY', st.day, '#ddd'], ['ARMOR', Math.round(st.armor), '#5ab0e0']];
+    const items = [['CASH', fmtMoney(st.money), '#8fe07a'], ['PRODUCT', st.bags + ' bags' + (st.bags ? ' · ' + st.purity.toFixed(1) + '%' : ''), '#7fd8f0'], ['PRECURSOR', st.precursor + ' units', '#c8b0f0'], ['HEAT', Math.round(st.heat) + '%', st.heat > 60 ? '#ff6040' : st.heat > 30 ? '#f0b040' : '#ddd'], ['DAY', st.day, '#ddd'], ['REP', Math.round(st.rep || 0), '#f0c060']];
     items.forEach(([k, v, col], i) => { const x = 110 + i * 158; UI.text(c, k, x, 20, 11, '#aaa'); UI.text(c, String(v), x, 42, 19, col, 'left', true); });
     if (UI.btn(c, W - 110, 9, 96, 36, 'MENU', { size: 14 })) this.overlay = 'pause';
     // heat bar
@@ -442,8 +447,9 @@ class CampScene {
     UI.text(c, 'Precursor: ' + st.precursor + '  ·  Product: ' + st.bags + ' bags', 64, 116, 16, '#bbb');
     const canCook = st.precursor >= 2;
     if (UI.btn(c, 64, 140, 412, 56, 'COOK A BATCH', { sub: canCook ? 'Uses 2 precursor · advances the day' : 'Need 2 precursor (Hardware Barn)', disabled: !canCook })) { st.precursor -= 2; Game.setScene(new CookScene({ done: r => Game.setScene(new CampScene()) })); }
-    if (UI.btn(c, 64, 206, 412, 56, 'SLEEP IN THE RV', { sub: 'Next day · heat -8 · new buyers' })) { st.day++; st.heat = Math.max(0, st.heat - 8); st.buyers = null; Game.save(); this.msg = 'You sleep badly. Walter snores like a dying carburetor. Day ' + st.day + '.'; }
-    if (UI.btn(c, 64, 272, 412, 50, 'BACK TO MAP')) Game.setScene(new HubScene());
+    if (UI.btn(c, 64, 206, 412, 56, 'SLEEP IN THE RV', { sub: 'Next day · heat -8 · your dealers work the night' })) { advanceDay('sleep'); Game.save(); this.msg = 'You sleep badly. Walter snores like a dying carburetor. Day ' + Game.state.day + '. ' + (Game.state.news[0] || ''); }
+    if (UI.btn(c, 64, 272, 200, 50, 'THE OPERATION', { size: 15 })) Game.setScene(new CrewScene());
+    if (UI.btn(c, 276, 272, 200, 50, 'BACK TO MAP', { size: 15 })) Game.setScene(new HubScene());
     if (this.msg) { UI.panel(c, 40, 360, 460, 70, 0.9); c.font = `16px ${FONT}`; c.fillStyle = '#ddd'; wrapText(c, this.msg, 60, 390, 420, 22); }
     UI.cursor(c);
   }
@@ -566,67 +572,6 @@ class ShopScene {
 }
 
 // ---------------------------------------------------------------- STREET TRADING
-const BUYER_LINES = ['Yo, is it the blue? Everybody\'s talking about the blue.', 'My cousin said you\'re the guy. Are you the guy?', 'I got cash. Small bills. Very small bills.', 'Quick, man, my bus is in five minutes.', 'Heard it\'s like ninety-nine percent. Is that real?', 'I\'m buying for a... book club.'];
-const COP_LINES = ['So, uh, how much narcotics product do you have available, sir?', 'Hello fellow drug enthusiast. I would like to purchase the illegal substance.', 'Before we deal, you\'re not a cop, right? I\'m definitely not.', 'Could you describe, for the record, what exactly you\'re selling?'];
-function makeBuyers() {
-  const st = Game.state, r = Math.random, out = [];
-  const pur = Math.max(st.purity, 60);
-  for (let i = 0; i < 3; i++) {
-    const cop = r() < (st.heat > 30 ? 0.22 : 0.08);
-    const want = randi(2, 5 + st.chapter);
-    const price = Math.round((35 + pur * 1.6) * rand(0.85, 1.25) * (1 + st.chapter * 0.07) / 5) * 5;
-    out.push({ look: Object.assign(lookOf('thug'), { name: choose(['Skinny Pete', 'Badger', 'Wendy B.', 'Combo', 'Tweaker Ted', 'Dutchie', 'Spooge', 'Gomez Jr.', 'Lil Ricky', 'Marisol']) }), want, price, cop, line: cop ? choose(COP_LINES) : choose(BUYER_LINES), done: false, haggles: 0 });
-  }
-  return out;
-}
-class TradeScene {
-  constructor() { this.t = 0; const st = Game.state; if (!st.buyers) st.buyers = makeBuyers(); this.buyers = st.buyers; this.log = null; }
-  enter() { Audio.music('hub'); }
-  update(dt) { this.t += dt; if (Input.hit('Escape')) Game.setScene(new HubScene()); }
-  sell(b) {
-    const st = Game.state, n = Math.min(b.want, st.bags);
-    if (b.cop) { st.bags -= n; st.heat = Math.min(100, st.heat + 35); b.done = true; Audio.play('bad'); this.log = { col: '#ff7050', text: b.look.name + ' flashes a badge! You shove past him and run. You lost ' + n + ' bags. Heat +35.' }; return; }
-    const cash = n * b.price; st.bags -= n; st.money += cash; st.stats.earned += cash; st.stats.bagsSold += n;
-    st.heat = Math.min(100, st.heat + n * (st.upgrades.foil ? 0.6 : 1.2)); b.done = true; if (st.bags <= 0) st.purity = 0;
-    Audio.play('cash'); this.log = { col: '#9fe88a', text: 'Sold ' + n + ' bags to ' + b.look.name + ' for ' + fmtMoney(cash) + '.' };
-    Game.save();
-  }
-  haggle(b) {
-    const st = Game.state; b.haggles++;
-    const chance = clamp(0.8 - b.haggles * 0.22 + (st.purity - 80) / 100, 0.1, 0.9);
-    if (Math.random() < chance) { b.price = Math.round(b.price * 1.15 / 5) * 5; Audio.play('uiok'); this.log = { col: '#ffd060', text: b.look.name + ': "Ugh... fine. ' + fmtMoney(b.price) + ' a bag."' }; }
-    else { b.done = true; b.walked = true; Audio.play('bad'); this.log = { col: '#ff9070', text: b.look.name + ': "Forget it, man. I\'ll go to the guy behind the laundromat."' }; }
-  }
-  draw(c) {
-    const th = THEMES.town, st = Game.state;
-    drawBackdrop(c, th, 800); drawGround(c, th, 800);
-    c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, 0, W, H);
-    drawFigure(c, poseStatic(150, GROUND, 1), LOOKS.jace, 1, {});
-    UI.panel(c, 20, 20, W - 40, 70, 0.85);
-    UI.text(c, 'DEL SOMBRA STREETS', 40, 54, 26, '#fff', 'left', true); UI.text(c, 'Day ' + st.day + ' · ' + (st.bags) + ' bags in hand' + (st.bags ? ' at ' + st.purity.toFixed(1) + '% purity' : ''), 40, 78, 15, '#bbb');
-    UI.text(c, 'HEAT ' + Math.round(st.heat) + '%', W - 220, 54, 22, st.heat > 50 ? '#ff6040' : '#ddd', 'left', true); UI.text(c, fmtMoney(st.money), W - 220, 78, 18, '#8fe07a', 'left', true);
-    this.buyers.forEach((b, i) => {
-      const x = 300 + i * 320, y = 120;
-      if (!b.done) drawFigure(c, poseStatic(x + 140, GROUND, -1), b.look, -1, {});
-      UI.panel(c, x, y, 290, 300, b.done ? 0.5 : 0.9);
-      drawPortrait(c, x + 14, y + 14, 80, b.look, b.done ? 'neutral' : 'smile');
-      UI.text(c, b.look.name, x + 108, y + 40, 20, b.done ? '#777' : '#fff', 'left', true);
-      if (b.done) { UI.text(c, b.walked ? 'Walked off' : 'Done', x + 108, y + 68, 15, '#888'); return; }
-      UI.text(c, 'Wants ' + b.want + ' bags', x + 108, y + 66, 15, '#bbb'); UI.text(c, fmtMoney(b.price) + ' / bag', x + 108, y + 88, 18, '#8fe07a', 'left', true);
-      c.font = `italic 15px ${FONT}`; c.fillStyle = '#e8dcc0'; wrapText(c, '"' + b.line + '"', x + 16, y + 130, 258, 20);
-      const n = Math.min(b.want, st.bags);
-      if (UI.btn(c, x + 16, y + 200, 258, 40, n > 0 ? 'SELL ' + n + ' FOR ' + fmtMoney(n * b.price) : 'NO PRODUCT', { disabled: n <= 0, size: 15 })) this.sell(b);
-      if (UI.btn(c, x + 16, y + 248, 124, 38, 'HAGGLE +15%', { disabled: n <= 0, size: 14 })) this.haggle(b);
-      if (UI.btn(c, x + 150, y + 248, 124, 38, 'PASS', { size: 14 })) { b.done = true; b.walked = true; }
-    });
-    if (this.log) { UI.panel(c, 300, 440, 940, 50, 0.9); UI.text(c, this.log.text, 320, 472, 17, this.log.col); }
-    if (this.buyers.every(b => b.done)) UI.text(c, 'No more buyers today. Sleep or cook in the RV to bring out new ones.', W / 2 + 120, 520, 16, '#ddd', 'center');
-    UI.text(c, 'Tip: purity raises prices. Some "buyers" are a little too curious.', W / 2 + 120, 548, 13, '#aaa', 'center');
-    if (UI.btn(c, 40, H - 90, 200, 50, 'LEAVE')) Game.setScene(new HubScene());
-    UI.cursor(c);
-  }
-}
-
 // ---------------------------------------------------------------- COOKING MINIGAME (fictional chemistry)
 const COOK_STEPS = [
   { id: 'heat', name: 'HEAT THE FLASK', help: 'Hold the mouse button to raise the temperature. Keep the needle in the green band.', walter: 'Steady heat, Jace. Chemistry punishes impatience.' },
@@ -650,7 +595,7 @@ class CookScene {
     const purity = Math.min(99.1, Math.round((62 + avg * 37.6) * 10) / 10);
     const st = Game.state; const bags = Math.round(5 + avg * 6 + (st.upgrades.glass ? 2 : 0));
     st.purity = st.bags > 0 ? (st.purity * st.bags + purity * bags) / (st.bags + bags) : purity;
-    st.bags += bags; st.day++; st.buyers = null; st.stats.cooks++; st.stats.bestPurity = Math.max(st.stats.bestPurity, purity);
+    st.bags += bags; advanceDay('cook'); st.stats.cooks++; st.stats.bestPurity = Math.max(st.stats.bestPurity, purity);
     this.result = { purity, bags, avg }; this.phase = 'result'; Game.save();
     Audio.play(purity > 95 ? 'uiok' : 'cash');
   }
@@ -733,9 +678,9 @@ class CookScene {
 
 // ---------------------------------------------------------------- ENDING + CREDITS
 class EndingScene {
-  constructor() { this.t = 0; this.x = 0; this.theme = THEMES.dusk; }
+  constructor() { this.t = 0; this.x = 0; this.theme = THEMES.dusk; this.epi = epilogueLines(); this.E = this.epi.length * 4 + 2; }
   enter() { Audio.music('menu'); }
-  update(dt) { this.t += dt; this.x += dt * 900; if (this.t > 46 || (this.t > 3 && Input.hit('Escape'))) { Game.setScene(new HubScene({ title: 'THE END', message: 'You finished Fixing Good. The desert is still out there: keep cooking, trading and fighting off the odd ambush for as long as you like.' })); } }
+  update(dt) { this.t += dt; this.x += dt * (this.t < this.E ? 120 : 900); if (this.t > this.E && Input.hit('Space') === false) {} if (this.t < this.E && (Input.hit('Space') || Input.mclick)) this.t = Math.ceil(this.t / 4) * 4; if (this.t > 46 + this.E || (this.t > 3 && Input.hit('Escape'))) { Game.setScene(new HubScene({ title: 'THE END', message: 'You finished Fixing Good. The desert is still out there: keep cooking, trading and fighting off the odd ambush for as long as you like.' })); } }
   draw(c) {
     drawBackdrop(c, this.theme, this.x); drawGround(c, this.theme, this.x);
     // Jace in the getaway car, screaming into the sunset
@@ -744,7 +689,13 @@ class EndingScene {
     c.fillStyle = LOOKS.jace.skin; c.beginPath(); c.arc(640, GROUND - 74 + bob, 10, 0, TAU); c.fill(); c.fillStyle = LOOKS.jace.hatColor; c.beginPath(); c.arc(640, GROUND - 77 + bob, 10, PI, TAU); c.fill();
     c.fillStyle = 'rgba(0,0,0,' + Math.max(0, 1 - this.t / 2) + ')'; c.fillRect(0, 0, W, H);
     c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, 0, W, 100); c.fillRect(0, H - 100, W, 100);
-    const t = this.t;
+    if (this.t < this.E) {
+      c.fillStyle = 'rgba(0,0,0,.82)'; c.fillRect(0, 0, W, H);
+      UI.text(c, 'EPILOGUE', W / 2, 150, 18, '#9fe88a', 'center', true);
+      let ey = 210; this.epi.forEach((l, i) => { const a = clamp((this.t - 1 - i * 4) / 1.2, 0, 1); if (a <= 0) return; c.globalAlpha = a; c.font = `21px ${FONT}`; c.fillStyle = '#f2ece0'; c.textAlign = 'center'; const lines = []; let line = ''; for (const w of l.split(' ')) { const tst = line ? line + ' ' + w : w; if (c.measureText(tst).width > 900 && line) { lines.push(line); line = w; } else line = tst; } lines.push(line); lines.forEach((ln, j) => c.fillText(ln, W / 2, ey + j * 27)); ey += lines.length * 27 + 26; c.textAlign = 'left'; c.globalAlpha = 1; });
+      UI.text(c, 'Click to continue', W - 20, H - 30, 13, '#888', 'right'); return;
+    }
+    const t = this.t - this.E;
     if (t > 2 && t < 12) { c.globalAlpha = Math.min(1, (t - 2) / 1.5, (12 - t) / 1.5); drawLogo(c, W / 2 - 160, 120, 0.85, 0.4); c.globalAlpha = 1; }
     const credits = ['FIXING GOOD', '', 'STARRING', 'Jace Pinkett', 'Walter Black', '', 'AND', 'Rafa "Loco" Vargas', 'The Cortez Twins', 'Augusto Fenn', 'Don Esteban', 'Uncle Dutch', 'Agent Hal Brewer', 'Morty Goodfellow, Esq.', 'Dusty', '', 'Every pixel, gunshot and note', 'was generated in code', '', 'STATS', 'Kills: ' + Game.state.stats.kills, 'Headshots: ' + Game.state.stats.heads, 'Batches cooked: ' + Game.state.stats.cooks, 'Best purity: ' + Game.state.stats.bestPurity.toFixed(1) + '%', 'Street earnings: ' + fmtMoney(Game.state.stats.earned), '', '', 'Thanks for playing.'];
     if (t > 12) { const off = (t - 12) * 48; credits.forEach((l, i) => { const y = H + 20 + i * 40 - off; if (y < 90 || y > H - 80) return; UI.text(c, l, W / 2, y, l === l.toUpperCase() && l.length > 2 ? 26 : 22, l === l.toUpperCase() ? '#9fe88a' : '#fff', 'center', l === l.toUpperCase()); }); }

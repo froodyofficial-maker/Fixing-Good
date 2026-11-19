@@ -108,7 +108,7 @@ function setupHighway(lv) {
   lv.drawMidExtra = (c) => {
     for (const v of lv.vehicles) if (v !== lv.rv) v.draw(c);
     const rv = lv.rv;
-    drawRV(c, rv.x, GROUND, { wheel: rv.wheel, bob: Math.sin(lv.time * 9) * 1.2, driver: LOOKS.walter, holes: rv.holes, dirty: true });
+    drawRV(c, rv.x, GROUND, { wheel: rv.wheel, bob: Math.sin(lv.time * 9) * 1.2, driver: LOOKS[lv.def.driver || 'walter'], holes: rv.holes, dirty: true });
   };
   lv.drawFrontExtra = (c) => {
     // speed lines

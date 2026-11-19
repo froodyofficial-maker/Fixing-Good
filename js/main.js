@@ -32,7 +32,7 @@ function devStart() {
   if (DEV.has('god')) Game.cheatGod = true;
   const lv = DEV.get('level'), sc = DEV.get('scene');
   if (lv) return Game.setScene(new LevelScene(lv, () => Game.setScene(new HubScene())));
-  const map = { hub: () => new HubScene(), cook: () => new CookScene({ done: () => Game.setScene(new HubScene()) }), dusty: () => new ShopScene('dusty'), hardware: () => new ShopScene('hardware'), morty: () => new ShopScene('morty'), trade: () => new TradeScene(), camp: () => new CampScene(), jobs: () => new JobScene(), ending: () => new EndingScene(), menu: () => new MenuScene() };
+  const map = { hub: () => new HubScene(), cook: () => new CookScene({ done: () => Game.setScene(new HubScene()) }), dusty: () => new ShopScene('dusty'), hardware: () => new ShopScene('hardware'), morty: () => new ShopScene('morty'), trade: () => new DistrictScene(DEV.get('d') || 'streets'), crew: () => new CrewScene(), camp: () => new CampScene(), jobs: () => new JobScene(), ending: () => new EndingScene(), menu: () => new MenuScene() };
   if (sc && map[sc]) Game.setScene(map[sc]());
 }
 let last = performance.now();

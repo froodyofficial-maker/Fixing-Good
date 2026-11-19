@@ -46,7 +46,7 @@ function makeJobLevel(job) {
     steps.push({ reach: width - 900 }, { spawn: [{ t: kind, id: 'target', x: width - 300, name: job.target, hp: 300 + ch * 60 + job.diff * 60, boss: true }, { t: pick(), x: width - 400 }, { t: pick(), from: 'left' }], boss: 'target', objective: 'Take down ' + job.target, banter: [null, job.target + ': "Dusty sent YOU?"'] });
     steps.push({ until: lv => !lv.named.target.alive }, { boss: null }, { clear: true });
   }
-  steps.push({ objective: '', do: lv => { Game.state.money += job.reward; const jj = (Game.state.jobs || []).find(x => x.seed === job.seed); if (jj) jj.done = true; lv.toast('JOB DONE  +' + fmtMoney(job.reward)); } }, { wait: 1.8 }, { fade: 'out' }, { end: true });
+  steps.push({ objective: '', do: lv => { Game.state.money += job.reward; if (job.rep) Game.state.rep = Math.min(100, (Game.state.rep || 0) + job.rep); const jj = (Game.state.jobs || []).find(x => x.seed === job.seed); if (jj) jj.done = true; lv.toast('JOB DONE  +' + fmtMoney(job.reward)); } }, { wait: 1.8 }, { fade: 'out' }, { end: true });
   return {
     theme: job.place.theme, width, start: 180, walter: job.walter, music: 'action', enemyLook: job.place.look, dark: night ? 0.6 : undefined,
     build(L) {
@@ -67,7 +67,26 @@ function makeJobLevel(job) {
   };
 }
 class JobScene {
-  constructor() { const st = Game.state; if (!st.jobs || st.jobsDay !== st.day) { st.jobs = makeJobs(); st.jobsDay = st.day; } this.jobs = st.jobs; }
+  drawCompact(c, j, x, y) {
+    UI.panel(c, x, y, 860, 98, j.done ? 0.5 : 0.9);
+    UI.text(c, j.title, x + 20, y + 32, 19, j.done ? '#777' : j.street ? '#ffb070' : '#fff', 'left', true);
+    UI.text(c, '★'.repeat(j.diff) + '☆'.repeat(3 - j.diff), x + 600, y + 32, 16, '#ffd060', 'right');
+    c.font = `13px ${FONT}`; c.fillStyle = j.done ? '#666' : '#bbb'; wrapText(c, j.desc, x + 20, y + 56, 600, 17);
+    UI.text(c, fmtMoney(j.reward), x + 836, y + 34, 22, j.done ? '#557' : '#8fe07a', 'right', true);
+    if (j.done) UI.text(c, 'COMPLETED', x + 836, y + 80, 15, '#9fe88a', 'right', true);
+    else if (UI.btn(c, x + 680, y + 48, 160, 38, 'TAKE THE JOB', { size: 14 })) Game.setScene(new LevelScene(null, () => Game.setScene(new JobScene()), { def: makeJobLevel(j) }));
+  }
+  constructor() {
+    const st = dealState(); if (!st.jobs || st.jobsDay !== st.day) { st.jobs = makeJobs(); st.jobsDay = st.day; }
+    // problems from the street come first
+    for (const e of st.extraJobs.splice(0)) {
+      const place = { name: DISTRICTS[e.district] ? DISTRICTS[e.district].name : 'the street', theme: e.district === 'south' ? 'southside' : e.district === 'truck' ? 'motel' : 'dusk', look: e.district === 'truck' ? 'biker' : 'thug' };
+      if (e.kind === 'collect') st.jobs.unshift({ seed: e.seed, place, diff: 1, bounty: true, target: e.name, walter: false, title: 'Collect from ' + e.name, desc: `${e.name} took product on credit and never paid. They're hiding behind friends on ${place.name}. Collect the ${fmtMoney(e.owed)}.`, reward: e.owed, done: false, street: true });
+      else st.jobs.unshift({ seed: e.seed, place, diff: 2, bounty: false, target: '', walter: true, title: 'Turf war: ' + (e.dealer || 'your corner'), desc: `A rival crew jumped ${e.dealer || 'your dealer'} on ${place.name}. If you don't answer, every corner you own is open season. Rep +8.`, reward: 600 + st.chapter * 250, rep: 8, done: false, street: true });
+    }
+    if (st.jobs.length > 6) st.jobs.length = 6;
+    this.jobs = st.jobs;
+  }
   enter() { Audio.music('hub'); }
   update() { if (Input.hit('Escape')) Game.setScene(new HubScene()); }
   draw(c) {
@@ -80,7 +99,8 @@ class JobScene {
     UI.panel(c, 40, 316, 300, 120, 0.8); c.font = `italic 16px ${FONT}`; c.fillStyle = '#e8dcc0'; wrapText(c, '"Jobs change every day. Pay\'s in cash. Don\'t die, it\'s bad for business."', 56, 346, 270, 22);
     UI.text(c, 'CASH  ' + fmtMoney(Game.state.money), 40, 476, 22, '#8fe07a', 'left', true);
     this.jobs.forEach((j, i) => {
-      const x = 380, y = 40 + i * 205;
+      const comp = this.jobs.length > 3, x = 380, y = 40 + i * (comp ? 108 : 205);
+      if (comp) return this.drawCompact(c, j, x, y);
       UI.panel(c, x, y, 860, 190, j.done ? 0.5 : 0.9);
       UI.text(c, j.title, x + 24, y + 42, 24, j.done ? '#777' : '#fff', 'left', true);
       UI.text(c, '★'.repeat(j.diff) + '☆'.repeat(3 - j.diff), x + 836, y + 42, 22, '#ffd060', 'right');
@@ -91,6 +111,7 @@ class JobScene {
       else if (UI.btn(c, x + 650, y + 124, 186, 46, 'TAKE THE JOB')) Game.setScene(new LevelScene(null, () => Game.setScene(new JobScene()), { def: makeJobLevel(j) }));
     });
     if (UI.btn(c, 40, H - 90, 200, 50, 'LEAVE')) Game.setScene(new HubScene());
+    UI.text(c, 'Street problems (unpaid fronts, jumped dealers) show up here first.', 40, H - 120, 13, '#e8a070');
     UI.text(c, 'New jobs every day (cook or sleep in the RV).', 40, H - 104, 13, '#888');
     UI.cursor(c);
   }

@@ -694,6 +694,11 @@ function buildThemes(progress) {
       layers: [{ c: mesaLayer(2048, GROUND, GROUND - 50, '#4a2a2e', '#2a161c', 51, 1.1), f: 0.08 }, { c: wallLayer('compound', 1680), f: 0.6 }],
       ground: groundTile('dirt'), dark: 0.22, haze: 'rgba(255,130,80,.1)'
     })],
+    ['southside', () => ({
+      sky: skyCanvas([[0, '#05070f'], [0.7, '#141a34'], [1, '#2a2440']], c => stars(c, 90, 12)),
+      layers: [{ c: mesaLayer(2048, GROUND, GROUND - 60, '#141a30', '#080a18', 81, 1), f: 0.08 }, { c: (() => { const cv = wallLayer('town', 1600), x = cv.getContext('2d'); x.fillStyle = 'rgba(5,8,20,.55)'; x.fillRect(0, 0, cv.width, cv.height); const r = srand(5); for (let i = 0; i < 40; i++) { x.fillStyle = r() < 0.5 ? 'rgba(255,200,120,.55)' : 'rgba(120,160,255,.35)'; x.fillRect(r() * 1600, GROUND - 260 + r() * 200, 14, 18); } x.strokeStyle = 'rgba(200,60,90,.6)'; x.lineWidth = 3; x.font = 'bold 26px sans-serif'; x.fillStyle = 'rgba(230,80,120,.8)'; x.fillText('SPIDER', 300, GROUND - 200); x.fillText('S.S.K.', 1100, GROUND - 150); return cv; })(), f: 0.6 }],
+      ground: groundTile('asphalt'), dark: 0.55
+    })],
     ['town', () => ({
       sky: skyCanvas([[0, '#5a9ad4'], [1, '#f0d8b0']]),
       layers: [{ c: mesaLayer(2048, GROUND, GROUND - 40, '#c78e6a', '#9a5f47', 61, 1), f: 0.08 }, { c: wallLayer('town', 1600), f: 0.6 }],

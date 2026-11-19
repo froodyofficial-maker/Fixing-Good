@@ -24,18 +24,28 @@ Progress saves automatically in the browser (localStorage).
 
 ## What's in it
 
-**Story:** 8 chapters with in-engine cutscenes, voiced-by-text dialogue with character portraits, chapter title cards, and an ending with credits.
+**Story:** 14 chapters with in-engine cutscenes, portrait dialogue, choices that change the epilogue, and two endings. It's a dark story: people around Jace die, and Walter is not a good man.
 
 | # | Chapter | What happens |
 |---|---|---|
 | 1 | Cold Start | The first cook in the RV, then two local hoods want your product |
 | 2 | Loco | A fist fight to impress Rafa, a double-cross, and a junkyard boss fight |
-| 3 | Barrels | A night-time warehouse heist by flashlight, with takedowns and alarms |
-| 4 | Highway to Nowhere | Ride the roof of the RV and fight off biker gangs at highway speed |
-| 5 | The Twins | A motel ambush and two silent hitmen |
-| 6 | Golden Hen | A meeting with a chicken magnate, then defend Walter in the superlab |
-| 7 | Rancho Muerte | Storm a cartel ranch and take down Don Esteban |
-| 8 | Last Ride | Chase the Dust Dogs, break Walter out, and get the M60 "trunk gun" |
+| 3 | Corners | Take Southside from Spider's crew with Nico, a kid from the projects, and meet the mother of a boy who sold your blue |
+| 4 | Barrels | A night-time warehouse heist by flashlight, with takedowns and alarms |
+| 5 | Highway to Nowhere | Ride the roof of the RV and fight off biker gangs at highway speed |
+| 6 | Lena | Storm Spider's trap house for Lena's sake, then the worst morning of Jace's life |
+| 7 | The Twins | A motel ambush and two silent hitmen |
+| 8 | Golden Hen | A meeting with a chicken magnate, then defend Walter in the superlab |
+| 9 | Nico | Fenn sends a message. Hunt the killers; decide what happens to the one on his knees |
+| 10 | Rancho Muerte | Storm a cartel ranch and take down Don Esteban |
+| 11 | Checkmate | Kill Fenn and his enforcer, then hear what Walter really did the night Lena died |
+| 12 | Brewer | Walter's brother-in-law has found you, and Walter has invited the Dust Dogs |
+| 13 | Alone | No partner, no money: rebuild with your corners, then buy a crew |
+| 14 | Last Ride | Chase the Dust Dogs, storm the compound, and decide what to do with a dying Walter |
+
+Later chapters ask for street results first: bags sold, reputation and cash. That's where the dealing comes in.
+
+**Dialogue skipping:** press **Enter** (or click SKIP) to skip a conversation, or **Tab** (SKIP ALL) to skip every conversation for the rest of the mission. Settings has *Story dialogue: SKIP ALL* to skip them everywhere. Choices still appear.
 
 **Gunplay**
 - Six guns: M9 pistol, .357 Magnum, 12ga pump, Uzi, AKM and M60, plus Rafa's gold pistols.
@@ -50,14 +60,28 @@ Progress saves automatically in the browser (localStorage).
 - Silent one-punch takedowns on enemies who haven't spotted you.
 - Dodge roll with invulnerability frames, crouch-behind-cover, one-way platforms.
 
-**Trading and the hub**
+**Dealing**
+- **Five districts:** Downtown, Southside, University Row, the Route 9 truck stop and the Silver Spur casino strip. Each has its own prices, demand, cop presence and robbery risk. Selling a lot floods a market until it recovers.
+- **Buyers:** regulars, hagglers, desperate users, rich kids, bulk buyers, undercover cops and robbers.
+- **Negotiation:** set a quantity and an asking price, and they counter until their patience runs out.
+  - *Read them* for tells, but you can misread a cop.
+  - *Talk quality* (works if your purity is high).
+  - *Apply pressure* (desperate buyers cave, others walk).
+  - *Throw in a free bag*, or *walk away* as a bluff.
+- **Fronting:** front product on credit at 130% for three days. Buyers who don't pay become collection jobs.
+- **Risks:** an undercover cop costs you the bags and a lot of heat. Robbers pull a knife; fight them in an alley, or hand it over.
+- **Cutting:** stretch 4 bags into 6. You get more bags, but lower purity, and buyers notice.
+- **Reputation:** raises prices and brings more buyers. You gain it with good product and fair deals, and by answering turf wars.
+- **Corner dealers:** hire them per district and keep them stocked. They sell every night and you get 70%. They can get arrested, robbed (which triggers a turf-war job) or start skimming if their loyalty drops.
+- **Morning report:** shows what happened overnight. *The Operation* screen at the RV camp shows your crew and who owes you.
+
+**The hub**
 - A county map with places to drive the RV between, with random biker ambushes and DEA checkpoints on the road.
 - **Cooking:** a five-step minigame (heat, catalyst, stir, cool, break & bag). Purity drives the price. The chemistry is entirely fictional.
-- **Street trading:** buyers with their own prices, haggling that can make them walk off, and undercover cops who ask too many questions.
-- **Heat:** selling raises it. High heat brings DEA checkpoints; a lawyer can make it go away for a fee.
+- **Heat:** selling raises it. High heat brings DEA checkpoints and undercover buyers; a lawyer can make it go away for a fee.
 - **Shops:** guns, ammo, armor, medkits and throwables at Dusty's; precursor and lab gear at the Hardware Barn.
 - **Upgrades:** faster reloads, hollow points, more health, brass knuckles, a wider cooking sweet spot.
-- **Side jobs:** at The Dog House, generated bounty and turf-war missions that change every day.
+- **Side jobs:** at The Dog House, generated bounty and turf-war missions that change every day, plus collection and turf-defence jobs from your street business.
 
 **Presentation:** a loading screen, title menu, settings (volume, music, screen shake, gore level, difficulty), pause menu, checkpoints, a game-over/retry screen, and mission results.
 
@@ -79,6 +103,8 @@ Progress saves automatically in the browser (localStorage).
 | H | Use medkit |
 | E | Interact |
 | Space / click | Advance dialogue |
+| Enter / Tab | Skip this conversation / skip all dialogue this mission |
+| 1 / 2 | Pick an option when a choice appears |
 | Esc | Pause |
 
 ## Project layout
@@ -92,7 +118,9 @@ js/fx.js          particles, blood, decals, casings, dropped mags, dynamic light
 js/actors.js      player/enemy/ally logic, AI, melee, ragdolls with dismemberment
 js/level.js       level runtime: physics world, bullets, explosions, fire, scripting, HUD, dialogue
 js/highway.js     the RV-roof highway chase mode and enemy vehicles
-js/story.js       all chapters, levels, cutscenes and dialogue
+js/story.js       the original chapters, levels, cutscenes and dialogue
+js/story2.js      the expanded story: new chapters, choices, endings, epilogue
+js/dealing.js     districts, buyers, negotiation, cutting, fronts, corner dealers, daily simulation
 js/scenes.js      loading, menu, hub map, shops, trading, cooking, missions, ending
 js/jobs.js        generated side jobs
 js/main.js        game state, save/load, main loop

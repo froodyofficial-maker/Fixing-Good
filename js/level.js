@@ -21,6 +21,7 @@ class Level {
     this.done = false; this.failed = false; this.failT = 0; this.checkpoint = opts.checkpoint || null;
     this.stats = { kills: 0, heads: 0, cash: 0, time: 0 };
     this.steps = def.steps || [];
+    this.skipDialogue = Settings.dialogue === 'skip';
     this.build();
     if (this.checkpoint) { this.stepI = this.checkpoint.step; }
     this.spawnHeroes();
@@ -290,13 +291,14 @@ class Level {
     let guard = 0;
     while (this.stepI < this.steps.length && guard++ < 50) {
       const s = this.steps[this.stepI];
+      if (!this.stepStarted && s.if && !s.if(this)) { this.stepI++; continue; }
       if (!this.stepStarted) { this.stepStarted = true; this.stepT = 0; this.startStep(s); }
       if (!this.stepDone(s)) { this.stepT += dt; return; }
       this.stepI++; this.stepStarted = false;
     }
   }
   startStep(s) {
-    if (s.say) { this.dialog = new Dialogue(s.say); this.cinematic = true; }
+    if (s.say && !this.skipDialogue) { this.dialog = new Dialogue(s.say, this); this.cinematic = true; }
     if (s.banter) this.banter(s.banter[0], s.banter[1]);
     if (s.spawn) this.spawn(s.spawn);
     if (s.objective !== undefined) { this.objective = s.objective; if (s.objective) Audio.play('ui'); }
@@ -311,12 +313,14 @@ class Level {
     if (s.arena) { this.minX = s.arena[0]; this.maxX = s.arena[1]; }
     if (s.unlock) { this.minX = 0; this.maxX = this.width; }
     if (s.fade) this.fadeTarget = s.fade === 'out' ? 1 : 0;
+    if (s.npc) this.addNPC(s.npc);
     if (s.do) s.do(this);
     if (s.end) { this.done = true; }
-    if (s.npc) this.addNPC(s.npc);
+    if (s.choice) { this.choice = Object.assign({ picked: null, t: 0 }, s.choice); this.cinematic = true; }
   }
   stepDone(s) {
     if (s.say) { if (this.dialog && !this.dialog.finished) return false; this.dialog = null; if (!s.keepCine) this.cinematic = false; }
+    if (s.choice) { if (!this.choice || this.choice.picked === null) return false; this.choice = null; if (!s.keepCine) this.cinematic = false; }
     if (s.wait !== undefined && this.stepT < s.wait) return false;
     if (s.reach !== undefined && (!this.player || this.player.x < s.reach)) return false;
     if (s.clear && this.enemiesAlive() > 0) return false;
@@ -555,12 +559,30 @@ class Level {
     }
     // dialogue
     if (this.dialog) this.dialog.draw(c);
+    if (this.choice) this.drawChoice(c);
     // crosshair
     if (showHud && p.alive) drawCrosshair(c, p, this);
     if (this.fade > 0.001) { c.fillStyle = `rgba(0,0,0,${this.fade})`; c.fillRect(0, 0, W, H); }
   }
 }
 
+Level.prototype.drawChoice = function (c) {
+  const ch = this.choice; ch.t += 1 / 60;
+  c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, 0, W, H);
+  const n = ch.options.length, w = 820, h = 150 + n * 76, x = (W - w) / 2, y = (H - h) / 2;
+  c.fillStyle = 'rgba(12,10,8,.96)'; rrect(c, x, y, w, h, 12); c.fill(); c.strokeStyle = 'rgba(255,90,60,.5)'; c.lineWidth = 2; c.stroke();
+  c.font = 'bold 14px "Oswald", sans-serif'; c.fillStyle = '#ff7a5a'; c.textAlign = 'center'; c.fillText('YOUR CHOICE', W / 2, y + 36);
+  c.font = '21px "Oswald", sans-serif'; c.fillStyle = '#f2ece0'; c.textAlign = 'left'; wrapText(c, ch.prompt, x + 40, y + 74, w - 80, 28);
+  ch.options.forEach((o, i) => {
+    const by = y + 116 + i * 76;
+    if (UI.btn(c, x + 40, by, w - 80, 64, (i + 1) + '.  ' + o.label, { sub: o.sub, align: 'left', size: 19, hot: '#7a2a1a' }) || Input.hit('Digit' + (i + 1))) {
+      if (ch.picked !== null || ch.t < 0.4) return; ch.picked = i; Audio.play('uiok');
+      if (o.flag) Game.state.flags[o.flag[0]] = o.flag[1];
+      if (o.do) o.do(this);
+    }
+  });
+  UI.cursor(c);
+};
 function drawCrosshair(c, p, lv) {
   const g = p.gun, x = Input.mx, y = Input.my;
   c.save(); c.translate(x, y);
@@ -576,7 +598,9 @@ function drawCrosshair(c, p, lv) {
 
 // ---------- dialogue ----------
 class Dialogue {
-  constructor(lines) { this.lines = lines; this.i = 0; this.chars = 0; this.finished = false; this.t = 0; }
+  constructor(lines, lv) { this.lines = lines; this.lv = lv; this.i = 0; this.chars = 0; this.finished = false; this.t = 0; }
+  skip(all) { this.finished = true; Audio.play('ui', 0, 0.5); if (all && this.lv) { this.lv.skipDialogue = true; this.lv.toast('Dialogue skipped for this mission'); } }
+  btns() { const x = 90, y = 82, w = W - 180, h = 150; return { one: [x + w - 250, y + h - 36, 100, 26], all: [x + w - 140, y + h - 36, 124, 26] }; }
   get line() { return this.lines[this.i]; }
   update(dt) {
     if (this.finished) return;
@@ -584,7 +608,10 @@ class Dialogue {
     const prev = Math.floor(this.chars);
     this.chars = Math.min(full, this.chars + dt * 52);
     if (Math.floor(this.chars) > prev && Math.floor(this.chars) % 3 === 0) Audio.play('type');
-    if (Input.hit('Space') || Input.mclick || Input.hit('Enter') || Input.hit('KeyE')) {
+    const B = this.btns(), inB = r => Input.mx >= r[0] && Input.mx <= r[0] + r[2] && Input.my >= r[1] && Input.my <= r[1] + r[3];
+    if (Input.hit('Tab') || (Input.mclick && inB(B.all))) { Input.mclick = false; return this.skip(true); }
+    if (Input.hit('Enter') || (Input.mclick && inB(B.one))) { Input.mclick = false; return this.skip(false); }
+    if (Input.hit('Space') || Input.mclick || Input.hit('KeyE')) {
       if (this.chars < full) this.chars = full;
       else { this.i++; this.chars = 0; Audio.play('ui', 0, 0.4); if (this.i >= this.lines.length) this.finished = true; }
     }
@@ -601,7 +628,10 @@ class Dialogue {
     c.fillText(look ? look.name.toUpperCase() : (who === 'narrator' ? '' : who.toUpperCase()), tx, y + 34);
     c.font = '19px "Oswald", sans-serif'; c.fillStyle = '#f2ece0';
     wrapText(c, text.slice(0, Math.floor(this.chars)), tx, y + 66, w - (tx - x) - 30, 26);
-    if (this.chars >= text.length) { c.fillStyle = `rgba(255,220,140,${0.5 + Math.sin(performance.now() / 200) * 0.4})`; c.font = '13px "Oswald", sans-serif'; c.textAlign = 'right'; c.fillText('SPACE ▸', x + w - 18, y + h - 14); c.textAlign = 'left'; }
+    const B = this.btns();
+    for (const [r, label] of [[B.one, 'SKIP ▸  [ENTER]'], [B.all, 'SKIP ALL ▸▸  [TAB]']]) { const hov = Input.mx >= r[0] && Input.mx <= r[0] + r[2] && Input.my >= r[1] && Input.my <= r[1] + r[3]; c.fillStyle = hov ? 'rgba(255,220,140,.3)' : 'rgba(255,255,255,.08)'; rrect(c, r[0], r[1], r[2], r[3], 5); c.fill(); c.fillStyle = '#e8dcc0'; c.font = 'bold 11px "Oswald", sans-serif'; c.textAlign = 'center'; c.fillText(label, r[0] + r[2] / 2, r[1] + 17); c.textAlign = 'left'; }
+    c.fillStyle = 'rgba(255,255,255,.35)'; c.font = '12px "Oswald", sans-serif'; c.fillText((this.i + 1) + ' / ' + this.lines.length, x + 160, y + h - 14);
+    if (this.chars >= text.length) { c.fillStyle = `rgba(255,220,140,${0.5 + Math.sin(performance.now() / 200) * 0.4})`; c.font = '13px "Oswald", sans-serif'; c.textAlign = 'right'; c.fillText('SPACE ▸', x + w - 262, y + h - 14); c.textAlign = 'left'; }
   }
 }
 function wrapText(c, text, x, y, maxW, lh) {

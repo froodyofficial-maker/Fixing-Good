@@ -98,7 +98,7 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => { Input.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
 
 // ---------- settings + save ----------
-const Settings = { volume: 0.8, music: 0.5, shake: 1, gore: 2 }; // gore: 0 off, 1 low, 2 full
+const Settings = { volume: 0.8, music: 0.5, shake: 1, gore: 2, dialogue: 'show' }; // gore: 0 off, 1 low, 2 full
 function store(k, v) { try { localStorage.setItem('fixinggood.' + k, JSON.stringify(v)); } catch (e) { } }
 function load(k) { try { const v = localStorage.getItem('fixinggood.' + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 Object.assign(Settings, load('settings') || {});

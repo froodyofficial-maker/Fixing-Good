@@ -122,7 +122,7 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => { Input.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
 
 // ---------- settings + save ----------
-const Settings = { volume: 0.8, music: 0.5, shake: 1, gore: 2 }; // gore: 0 off, 1 low, 2 full
+const Settings = { volume: 0.8, music: 0.5, shake: 1, gore: 2, dialogue: 'show' }; // gore: 0 off, 1 low, 2 full
 function store(k, v) { try { localStorage.setItem('fixinggood.' + k, JSON.stringify(v)); } catch (e) { } }
 function load(k) { try { const v = localStorage.getItem('fixinggood.' + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 Object.assign(Settings, load('settings') || {});
@@ -940,6 +940,11 @@ function buildThemes(progress) {
       sky: skyCanvas([[0, '#2a2040'], [0.6, '#a04a3a'], [1, '#f09a50']], c => stars(c, 20, 6)),
       layers: [{ c: mesaLayer(2048, GROUND, GROUND - 50, '#4a2a2e', '#2a161c', 51, 1.1), f: 0.08 }, { c: wallLayer('compound', 1680), f: 0.6 }],
       ground: groundTile('dirt'), dark: 0.22, haze: 'rgba(255,130,80,.1)'
+    })],
+    ['southside', () => ({
+      sky: skyCanvas([[0, '#05070f'], [0.7, '#141a34'], [1, '#2a2440']], c => stars(c, 90, 12)),
+      layers: [{ c: mesaLayer(2048, GROUND, GROUND - 60, '#141a30', '#080a18', 81, 1), f: 0.08 }, { c: (() => { const cv = wallLayer('town', 1600), x = cv.getContext('2d'); x.fillStyle = 'rgba(5,8,20,.55)'; x.fillRect(0, 0, cv.width, cv.height); const r = srand(5); for (let i = 0; i < 40; i++) { x.fillStyle = r() < 0.5 ? 'rgba(255,200,120,.55)' : 'rgba(120,160,255,.35)'; x.fillRect(r() * 1600, GROUND - 260 + r() * 200, 14, 18); } x.strokeStyle = 'rgba(200,60,90,.6)'; x.lineWidth = 3; x.font = 'bold 26px sans-serif'; x.fillStyle = 'rgba(230,80,120,.8)'; x.fillText('SPIDER', 300, GROUND - 200); x.fillText('S.S.K.', 1100, GROUND - 150); return cv; })(), f: 0.6 }],
+      ground: groundTile('asphalt'), dark: 0.55
     })],
     ['town', () => ({
       sky: skyCanvas([[0, '#5a9ad4'], [1, '#f0d8b0']]),
@@ -1908,6 +1913,7 @@ class Level {
     this.done = false; this.failed = false; this.failT = 0; this.checkpoint = opts.checkpoint || null;
     this.stats = { kills: 0, heads: 0, cash: 0, time: 0 };
     this.steps = def.steps || [];
+    this.skipDialogue = Settings.dialogue === 'skip';
     this.build();
     if (this.checkpoint) { this.stepI = this.checkpoint.step; }
     this.spawnHeroes();
@@ -2177,13 +2183,14 @@ class Level {
     let guard = 0;
     while (this.stepI < this.steps.length && guard++ < 50) {
       const s = this.steps[this.stepI];
+      if (!this.stepStarted && s.if && !s.if(this)) { this.stepI++; continue; }
       if (!this.stepStarted) { this.stepStarted = true; this.stepT = 0; this.startStep(s); }
       if (!this.stepDone(s)) { this.stepT += dt; return; }
       this.stepI++; this.stepStarted = false;
     }
   }
   startStep(s) {
-    if (s.say) { this.dialog = new Dialogue(s.say); this.cinematic = true; }
+    if (s.say && !this.skipDialogue) { this.dialog = new Dialogue(s.say, this); this.cinematic = true; }
     if (s.banter) this.banter(s.banter[0], s.banter[1]);
     if (s.spawn) this.spawn(s.spawn);
     if (s.objective !== undefined) { this.objective = s.objective; if (s.objective) Audio.play('ui'); }
@@ -2198,12 +2205,14 @@ class Level {
     if (s.arena) { this.minX = s.arena[0]; this.maxX = s.arena[1]; }
     if (s.unlock) { this.minX = 0; this.maxX = this.width; }
     if (s.fade) this.fadeTarget = s.fade === 'out' ? 1 : 0;
+    if (s.npc) this.addNPC(s.npc);
     if (s.do) s.do(this);
     if (s.end) { this.done = true; }
-    if (s.npc) this.addNPC(s.npc);
+    if (s.choice) { this.choice = Object.assign({ picked: null, t: 0 }, s.choice); this.cinematic = true; }
   }
   stepDone(s) {
     if (s.say) { if (this.dialog && !this.dialog.finished) return false; this.dialog = null; if (!s.keepCine) this.cinematic = false; }
+    if (s.choice) { if (!this.choice || this.choice.picked === null) return false; this.choice = null; if (!s.keepCine) this.cinematic = false; }
     if (s.wait !== undefined && this.stepT < s.wait) return false;
     if (s.reach !== undefined && (!this.player || this.player.x < s.reach)) return false;
     if (s.clear && this.enemiesAlive() > 0) return false;
@@ -2442,12 +2451,30 @@ class Level {
     }
     // dialogue
     if (this.dialog) this.dialog.draw(c);
+    if (this.choice) this.drawChoice(c);
     // crosshair
     if (showHud && p.alive) drawCrosshair(c, p, this);
     if (this.fade > 0.001) { c.fillStyle = `rgba(0,0,0,${this.fade})`; c.fillRect(0, 0, W, H); }
   }
 }
 
+Level.prototype.drawChoice = function (c) {
+  const ch = this.choice; ch.t += 1 / 60;
+  c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, 0, W, H);
+  const n = ch.options.length, w = 820, h = 150 + n * 76, x = (W - w) / 2, y = (H - h) / 2;
+  c.fillStyle = 'rgba(12,10,8,.96)'; rrect(c, x, y, w, h, 12); c.fill(); c.strokeStyle = 'rgba(255,90,60,.5)'; c.lineWidth = 2; c.stroke();
+  c.font = 'bold 14px "Oswald", sans-serif'; c.fillStyle = '#ff7a5a'; c.textAlign = 'center'; c.fillText('YOUR CHOICE', W / 2, y + 36);
+  c.font = '21px "Oswald", sans-serif'; c.fillStyle = '#f2ece0'; c.textAlign = 'left'; wrapText(c, ch.prompt, x + 40, y + 74, w - 80, 28);
+  ch.options.forEach((o, i) => {
+    const by = y + 116 + i * 76;
+    if (UI.btn(c, x + 40, by, w - 80, 64, (i + 1) + '.  ' + o.label, { sub: o.sub, align: 'left', size: 19, hot: '#7a2a1a' }) || Input.hit('Digit' + (i + 1))) {
+      if (ch.picked !== null || ch.t < 0.4) return; ch.picked = i; Audio.play('uiok');
+      if (o.flag) Game.state.flags[o.flag[0]] = o.flag[1];
+      if (o.do) o.do(this);
+    }
+  });
+  UI.cursor(c);
+};
 function drawCrosshair(c, p, lv) {
   const g = p.gun, x = Input.mx, y = Input.my;
   c.save(); c.translate(x, y);
@@ -2463,7 +2490,9 @@ function drawCrosshair(c, p, lv) {
 
 // ---------- dialogue ----------
 class Dialogue {
-  constructor(lines) { this.lines = lines; this.i = 0; this.chars = 0; this.finished = false; this.t = 0; }
+  constructor(lines, lv) { this.lines = lines; this.lv = lv; this.i = 0; this.chars = 0; this.finished = false; this.t = 0; }
+  skip(all) { this.finished = true; Audio.play('ui', 0, 0.5); if (all && this.lv) { this.lv.skipDialogue = true; this.lv.toast('Dialogue skipped for this mission'); } }
+  btns() { const x = 90, y = 82, w = W - 180, h = 150; return { one: [x + w - 250, y + h - 36, 100, 26], all: [x + w - 140, y + h - 36, 124, 26] }; }
   get line() { return this.lines[this.i]; }
   update(dt) {
     if (this.finished) return;
@@ -2471,7 +2500,10 @@ class Dialogue {
     const prev = Math.floor(this.chars);
     this.chars = Math.min(full, this.chars + dt * 52);
     if (Math.floor(this.chars) > prev && Math.floor(this.chars) % 3 === 0) Audio.play('type');
-    if (Input.hit('Space') || Input.mclick || Input.hit('Enter') || Input.hit('KeyE')) {
+    const B = this.btns(), inB = r => Input.mx >= r[0] && Input.mx <= r[0] + r[2] && Input.my >= r[1] && Input.my <= r[1] + r[3];
+    if (Input.hit('Tab') || (Input.mclick && inB(B.all))) { Input.mclick = false; return this.skip(true); }
+    if (Input.hit('Enter') || (Input.mclick && inB(B.one))) { Input.mclick = false; return this.skip(false); }
+    if (Input.hit('Space') || Input.mclick || Input.hit('KeyE')) {
       if (this.chars < full) this.chars = full;
       else { this.i++; this.chars = 0; Audio.play('ui', 0, 0.4); if (this.i >= this.lines.length) this.finished = true; }
     }
@@ -2488,7 +2520,10 @@ class Dialogue {
     c.fillText(look ? look.name.toUpperCase() : (who === 'narrator' ? '' : who.toUpperCase()), tx, y + 34);
     c.font = '19px "Oswald", sans-serif'; c.fillStyle = '#f2ece0';
     wrapText(c, text.slice(0, Math.floor(this.chars)), tx, y + 66, w - (tx - x) - 30, 26);
-    if (this.chars >= text.length) { c.fillStyle = `rgba(255,220,140,${0.5 + Math.sin(performance.now() / 200) * 0.4})`; c.font = '13px "Oswald", sans-serif'; c.textAlign = 'right'; c.fillText('SPACE ▸', x + w - 18, y + h - 14); c.textAlign = 'left'; }
+    const B = this.btns();
+    for (const [r, label] of [[B.one, 'SKIP ▸  [ENTER]'], [B.all, 'SKIP ALL ▸▸  [TAB]']]) { const hov = Input.mx >= r[0] && Input.mx <= r[0] + r[2] && Input.my >= r[1] && Input.my <= r[1] + r[3]; c.fillStyle = hov ? 'rgba(255,220,140,.3)' : 'rgba(255,255,255,.08)'; rrect(c, r[0], r[1], r[2], r[3], 5); c.fill(); c.fillStyle = '#e8dcc0'; c.font = 'bold 11px "Oswald", sans-serif'; c.textAlign = 'center'; c.fillText(label, r[0] + r[2] / 2, r[1] + 17); c.textAlign = 'left'; }
+    c.fillStyle = 'rgba(255,255,255,.35)'; c.font = '12px "Oswald", sans-serif'; c.fillText((this.i + 1) + ' / ' + this.lines.length, x + 160, y + h - 14);
+    if (this.chars >= text.length) { c.fillStyle = `rgba(255,220,140,${0.5 + Math.sin(performance.now() / 200) * 0.4})`; c.font = '13px "Oswald", sans-serif'; c.textAlign = 'right'; c.fillText('SPACE ▸', x + w - 262, y + h - 14); c.textAlign = 'left'; }
   }
 }
 function wrapText(c, text, x, y, maxW, lh) {
@@ -2609,7 +2644,7 @@ function setupHighway(lv) {
   lv.drawMidExtra = (c) => {
     for (const v of lv.vehicles) if (v !== lv.rv) v.draw(c);
     const rv = lv.rv;
-    drawRV(c, rv.x, GROUND, { wheel: rv.wheel, bob: Math.sin(lv.time * 9) * 1.2, driver: LOOKS.walter, holes: rv.holes, dirty: true });
+    drawRV(c, rv.x, GROUND, { wheel: rv.wheel, bob: Math.sin(lv.time * 9) * 1.2, driver: LOOKS[lv.def.driver || 'walter'], holes: rv.holes, dirty: true });
   };
   lv.drawFrontExtra = (c) => {
     // speed lines
@@ -2928,6 +2963,14 @@ const LEVELS = {
     ]
   },
   // ---------------------------------------------------------------- SIDE: random ambush
+  alley: {
+    theme: 'southside', width: 1900, start: 700, walter: false, music: 'action', enemyLook: 'thug', dark: 0.5,
+    build(L) { L.crate(300, 60, 56, 'cardboard'); L.prop(c => { c.fillStyle = '#2a3a2a'; c.fillRect(1100, GROUND - 70, 120, 70); c.strokeStyle = INK; c.lineWidth = 3; c.strokeRect(1100, GROUND - 70, 120, 70); }); L.crate(1100, 120, 70, 'none'); L.lamp(520, 240); L.lamp(1400, 240); L.barrel(1600, 'red'); },
+    steps: [
+      { objective: 'Don\'t get robbed', spawn: [{ t: 'knifer', x: 900 }, { t: 'thug', x: 1000 }, { t: 'thug', x: 400 }] },
+      { clear: true }, { wait: 0.8 }, { banter: ['jace', 'Anybody else want to rob me? No? Cool.'] }, { wait: 1.5 }, { end: true },
+    ]
+  },
   ambush: {
     theme: 'highway', width: 90000, start: 480, mode: 'highway', zoom: 1, noDecals: true, music: 'action', enemyLook: 'biker',
     steps: [
@@ -3003,7 +3046,7 @@ class LoadingScene {
   constructor() {
     this.steps = buildThemes(); this.i = 0; this.t = 0; this.p = 0; this.ready = false; this.smoke = smokeField(26, 4); this.fontsOk = false;
     this.labels = ['Measuring reagents', 'Polishing the RV', 'Cleaning Walter\'s glasses', 'Loading the desert', 'Counting cash', 'Painting the mesas', 'Hiding from the DEA', 'Sharpening the plot', 'Teaching Jace chemistry', 'Calibrating gunfire', 'Spilling blood (fake)', 'Rolling credits'];
-    this.tips = ['TIP: Shotguns load one shell at a time. Click to fire mid-reload.', 'TIP: Headshots deal 2.6× damage. Armored enemies hate them.', 'TIP: Shoot red barrels. Walter says it\'s "basic thermodynamics."', 'TIP: Roll with Shift to dodge bullets.', 'TIP: Higher purity means buyers pay more. Nail the cook minigame.', 'TIP: Undercover cops ask too many questions. Heat attracts trouble.', 'TIP: Sneak up on guards who haven\'t seen you for a one-punch takedown.'];
+    this.tips = ['TIP: Shotguns load one shell at a time. Click to fire mid-reload.', 'TIP: Headshots deal 2.6× damage. Armored enemies hate them.', 'TIP: Shoot red barrels. Walter says it\'s "basic thermodynamics."', 'TIP: Roll with Shift to dodge bullets.', 'TIP: Higher purity means buyers pay more. Nail the cook minigame.', 'TIP: Undercover cops ask too many questions. Heat attracts trouble.', 'TIP: Sneak up on guards who haven\'t seen you for a one-punch takedown.', 'TIP: Press TAB during any conversation to skip all dialogue for the mission.', 'TIP: Read a buyer before you deal. Brand-new sneakers and too many questions mean cop.', 'TIP: Keep your corner dealers stocked. They sell while you sleep.'];
     this.tip = choose(this.tips);
     if (document.fonts && document.fonts.load) { Promise.race([document.fonts.load('bold 40px Oswald'), new Promise(r => setTimeout(r, 2500))]).then(() => this.fontsOk = true, () => this.fontsOk = true); } else this.fontsOk = true;
   }
@@ -3039,20 +3082,21 @@ class LoadingScene {
 
 // ---------------------------------------------------------------- SETTINGS / CONTROLS overlays
 function drawSettings(c, close) {
-  UI.panel(c, W / 2 - 260, 140, 520, 430, 0.95);
+  UI.panel(c, W / 2 - 260, 120, 520, 500, 0.95);
   UI.text(c, 'SETTINGS', W / 2, 190, 30, '#fff', 'center', true);
   const row = (y, label, val, fn) => { UI.text(c, label, W / 2 - 220, y + 28, 18, '#ddd'); if (UI.btn(c, W / 2 + 40, y, 180, 42, val)) fn(); };
   row(220, 'Sound volume', Math.round(Settings.volume * 100) + '%', () => { Settings.volume = (Settings.volume + 0.2) > 1.01 ? 0 : Settings.volume + 0.2; Audio.applyVolume(); });
   row(272, 'Music volume', Math.round(Settings.music * 100) + '%', () => { Settings.music = (Settings.music + 0.25) > 1.01 ? 0 : Settings.music + 0.25; Audio.applyVolume(); });
   row(324, 'Screen shake', Settings.shake ? 'ON' : 'OFF', () => Settings.shake = Settings.shake ? 0 : 1);
   row(376, 'Blood & gore', ['OFF', 'LOW', 'FULL'][Settings.gore], () => Settings.gore = (Settings.gore + 1) % 3);
-  if (Game.state) row(428, 'Difficulty', Game.state.difficulty.toUpperCase(), () => { const d = ['easy', 'normal', 'hard']; Game.state.difficulty = d[(d.indexOf(Game.state.difficulty) + 1) % 3]; });
-  if (UI.btn(c, W / 2 - 90, 500, 180, 46, 'BACK') || Input.hit('Escape')) { store('settings', Settings); close(); }
+  row(428, 'Story dialogue', Settings.dialogue === 'skip' ? 'SKIP ALL' : 'SHOW', () => Settings.dialogue = Settings.dialogue === 'skip' ? 'show' : 'skip');
+  if (Game.state) row(480, 'Difficulty', Game.state.difficulty.toUpperCase(), () => { const d = ['easy', 'normal', 'hard']; Game.state.difficulty = d[(d.indexOf(Game.state.difficulty) + 1) % 3]; });
+  if (UI.btn(c, W / 2 - 90, 548, 180, 46, 'BACK') || Input.hit('Escape')) { store('settings', Settings); close(); }
 }
 function drawControls(c, close) {
   UI.panel(c, W / 2 - 340, 90, 680, 540, 0.95);
   UI.text(c, 'CONTROLS', W / 2, 140, 30, '#fff', 'center', true);
-  const rows = [['A / D', 'Move'], ['W / Space', 'Jump'], ['S (hold)', 'Crouch · S+Space drops through platforms'], ['Shift', 'Dodge roll (dodges bullets)'], ['Mouse', 'Aim'], ['Left click', 'Shoot (hold for automatics)'], ['R', 'Reload'], ['F / Right click', 'Melee: jab → cross → kick combo'], ['1–6 · Wheel · Q', 'Switch weapon / last weapon'], ['G', 'Throw Bang Crystal (explosive)'], ['V', 'Throw Molotov'], ['H', 'Use medkit'], ['E', 'Interact'], ['Space / Click', 'Advance dialogue'], ['Esc', 'Pause']];
+  const rows = [['A / D', 'Move'], ['W / Space', 'Jump'], ['S (hold)', 'Crouch · S+Space drops through platforms'], ['Shift', 'Dodge roll (dodges bullets)'], ['Mouse', 'Aim'], ['Left click', 'Shoot (hold for automatics)'], ['R', 'Reload'], ['F / Right click', 'Melee: jab → cross → kick combo'], ['1–6 · Wheel · Q', 'Switch weapon / last weapon'], ['G', 'Throw Bang Crystal (explosive)'], ['V', 'Throw Molotov'], ['H', 'Use medkit'], ['E', 'Interact'], ['Space · Enter · Tab', 'Next line · skip conversation · skip ALL dialogue'], ['Esc', 'Pause']];
   rows.forEach(([k, v], i) => { const y = 180 + i * 28; c.fillStyle = 'rgba(255,255,255,.06)'; if (i % 2) c.fillRect(W / 2 - 310, y - 19, 620, 28); UI.text(c, k, W / 2 - 290, y, 17, '#ffd060', 'left', true); UI.text(c, v, W / 2 - 100, y, 17, '#ddd'); });
   if (UI.btn(c, W / 2 - 90, 610 - 34, 180, 44, 'BACK') || Input.hit('Escape')) close();
 }
@@ -3206,7 +3250,11 @@ function choose0(arr, lv) { return arr[Math.floor(lv.def.width) % arr.length]; }
 // ---------------------------------------------------------------- HUB MAP
 const NODES = {
   rv: { x: 290, y: 440, name: 'RV Camp', sub: 'Cook · rest · stash', icon: 'rv' },
-  streets: { x: 640, y: 340, name: 'Del Sombra Streets', sub: 'Sell product to buyers', icon: 'deal' },
+  streets: { x: 640, y: 340, name: 'Downtown', sub: 'Deal on the street', icon: 'deal' },
+  south: { x: 760, y: 520, name: 'Southside Projects', sub: 'Deal: busy, poor, dangerous', icon: 'deal' },
+  campus: { x: 470, y: 300, name: 'University Row', sub: 'Deal: rich kids, campus cops', icon: 'deal' },
+  truck: { x: 360, y: 560, name: 'Route 9 Truck Stop', sub: 'Deal: bulk buyers', icon: 'deal' },
+  casino: { x: 1000, y: 430, name: 'Silver Spur Strip', sub: 'Deal: high rollers, high heat', icon: 'deal' },
   dusty: { x: 790, y: 430, name: "Dusty's Pawn & Guns", sub: 'Weapons · ammo · armor · upgrades', icon: 'gun' },
   hardware: { x: 520, y: 470, name: 'Hardware Barn', sub: 'Precursor · lab gear', icon: 'chem' },
   morty: { x: 720, y: 250, name: 'Morty Goodfellow, Esq.', sub: 'Lose some heat (for a fee)', icon: 'law' },
@@ -3218,7 +3266,7 @@ const NODES = {
   ranch: { x: 1160, y: 660, name: 'Rancho Esteban', sub: 'Across the border', icon: 'story' },
   compound: { x: 210, y: 230, name: 'Dust Dogs Compound', sub: 'Uncle Dutch\'s place', icon: 'story' },
 };
-const ROADS = [['rv', 'hardware'], ['hardware', 'streets'], ['streets', 'dusty'], ['streets', 'morty'], ['morty', 'hen'], ['streets', 'junk'], ['dusty', 'chem'], ['chem', 'motel'], ['hardware', 'road'], ['motel', 'ranch'], ['rv', 'compound'], ['junk', 'motel'], ['hen', 'compound']];
+const ROADS = [['streets', 'campus'], ['dusty', 'south'], ['road', 'truck'], ['dusty', 'casino'], ['rv', 'hardware'], ['hardware', 'streets'], ['streets', 'dusty'], ['streets', 'morty'], ['morty', 'hen'], ['streets', 'junk'], ['dusty', 'chem'], ['chem', 'motel'], ['hardware', 'road'], ['motel', 'ranch'], ['rv', 'compound'], ['junk', 'motel'], ['hen', 'compound']];
 let MAP_CANVAS = null;
 function buildMap() {
   const cv = makeCanvas(W, H), c = cv.getContext('2d'), r = srand(77);
@@ -3259,16 +3307,16 @@ function drawNodeIcon(c, kind, x, y, s = 1) {
 }
 class HubScene {
   constructor(o = {}) { this.t = 0; this.sel = null; this.msg = o.message || null; this.msgTitle = o.title || null; this.popup = o.popup || null; this.overlay = null; if (!MAP_CANVAS) MAP_CANVAS = buildMap(); }
-  enter() { Audio.music('hub'); Game.save(); Game.level = null; }
+  enter() { Audio.music('hub'); const st = dealState(); if (!this.msg && st.news && st.news.length && st.newsShown !== st.day) { st.newsShown = st.day; this.msg = st.news.slice(0, 5).join('  •  '); this.msgTitle = 'MORNING REPORT · DAY ' + st.day; } Game.save(); Game.level = null; }
   storyNode() { const C = CHAPTERS[Game.state.chapter]; return C ? C.node : null; }
-  visible(k) { const n = NODES[k]; if (n.icon !== 'story') return Game.state.chapter >= 1 || k === 'rv'; return k === this.storyNode(); }
+  visible(k) { const n = NODES[k], st = dealState(); if (n.icon === 'deal') return DISTRICTS[k].unlock(st); if (n.icon !== 'story') return st.chapter >= 1 || k === 'rv'; return k === this.storyNode(); }
   update(dt) { this.t += dt; if (Input.hit('Escape')) { if (this.overlay) this.overlay = null; else this.overlay = 'pause'; } }
   travel(k) {
     const st = Game.state, n = NODES[k];
     const go = () => {
       if (n.icon === 'story') { if (k === 'rv' && CHAPTERS[st.chapter] && CHAPTERS[st.chapter].node === 'rv') return Story.play(st.chapter); return Story.play(st.chapter); }
       if (k === 'rv') return Game.setScene(new CampScene());
-      if (k === 'streets') return Game.setScene(new TradeScene());
+      if (NODES[k].icon === 'deal') return Game.setScene(new DistrictScene(k));
       if (k === 'dusty') return Game.setScene(new ShopScene('dusty'));
       if (k === 'hardware') return Game.setScene(new ShopScene('hardware'));
       if (k === 'morty') return Game.setScene(new ShopScene('morty'));
@@ -3307,7 +3355,7 @@ class HubScene {
     // top bar
     c.fillStyle = 'rgba(15,12,8,.85)'; c.fillRect(0, 0, W, 54);
     drawLogo(c, 14, 6, 0.19);
-    const items = [['CASH', fmtMoney(st.money), '#8fe07a'], ['PRODUCT', st.bags + ' bags' + (st.bags ? ' · ' + st.purity.toFixed(1) + '%' : ''), '#7fd8f0'], ['PRECURSOR', st.precursor + ' units', '#c8b0f0'], ['HEAT', Math.round(st.heat) + '%', st.heat > 60 ? '#ff6040' : st.heat > 30 ? '#f0b040' : '#ddd'], ['DAY', st.day, '#ddd'], ['ARMOR', Math.round(st.armor), '#5ab0e0']];
+    const items = [['CASH', fmtMoney(st.money), '#8fe07a'], ['PRODUCT', st.bags + ' bags' + (st.bags ? ' · ' + st.purity.toFixed(1) + '%' : ''), '#7fd8f0'], ['PRECURSOR', st.precursor + ' units', '#c8b0f0'], ['HEAT', Math.round(st.heat) + '%', st.heat > 60 ? '#ff6040' : st.heat > 30 ? '#f0b040' : '#ddd'], ['DAY', st.day, '#ddd'], ['REP', Math.round(st.rep || 0), '#f0c060']];
     items.forEach(([k, v, col], i) => { const x = 110 + i * 158; UI.text(c, k, x, 20, 11, '#aaa'); UI.text(c, String(v), x, 42, 19, col, 'left', true); });
     if (UI.btn(c, W - 110, 9, 96, 36, 'MENU', { size: 14 })) this.overlay = 'pause';
     // heat bar
@@ -3395,8 +3443,9 @@ class CampScene {
     UI.text(c, 'Precursor: ' + st.precursor + '  ·  Product: ' + st.bags + ' bags', 64, 116, 16, '#bbb');
     const canCook = st.precursor >= 2;
     if (UI.btn(c, 64, 140, 412, 56, 'COOK A BATCH', { sub: canCook ? 'Uses 2 precursor · advances the day' : 'Need 2 precursor (Hardware Barn)', disabled: !canCook })) { st.precursor -= 2; Game.setScene(new CookScene({ done: r => Game.setScene(new CampScene()) })); }
-    if (UI.btn(c, 64, 206, 412, 56, 'SLEEP IN THE RV', { sub: 'Next day · heat -8 · new buyers' })) { st.day++; st.heat = Math.max(0, st.heat - 8); st.buyers = null; Game.save(); this.msg = 'You sleep badly. Walter snores like a dying carburetor. Day ' + st.day + '.'; }
-    if (UI.btn(c, 64, 272, 412, 50, 'BACK TO MAP')) Game.setScene(new HubScene());
+    if (UI.btn(c, 64, 206, 412, 56, 'SLEEP IN THE RV', { sub: 'Next day · heat -8 · your dealers work the night' })) { advanceDay('sleep'); Game.save(); this.msg = 'You sleep badly. Walter snores like a dying carburetor. Day ' + Game.state.day + '. ' + (Game.state.news[0] || ''); }
+    if (UI.btn(c, 64, 272, 200, 50, 'THE OPERATION', { size: 15 })) Game.setScene(new CrewScene());
+    if (UI.btn(c, 276, 272, 200, 50, 'BACK TO MAP', { size: 15 })) Game.setScene(new HubScene());
     if (this.msg) { UI.panel(c, 40, 360, 460, 70, 0.9); c.font = `16px ${FONT}`; c.fillStyle = '#ddd'; wrapText(c, this.msg, 60, 390, 420, 22); }
     UI.cursor(c);
   }
@@ -3519,67 +3568,6 @@ class ShopScene {
 }
 
 // ---------------------------------------------------------------- STREET TRADING
-const BUYER_LINES = ['Yo, is it the blue? Everybody\'s talking about the blue.', 'My cousin said you\'re the guy. Are you the guy?', 'I got cash. Small bills. Very small bills.', 'Quick, man, my bus is in five minutes.', 'Heard it\'s like ninety-nine percent. Is that real?', 'I\'m buying for a... book club.'];
-const COP_LINES = ['So, uh, how much narcotics product do you have available, sir?', 'Hello fellow drug enthusiast. I would like to purchase the illegal substance.', 'Before we deal, you\'re not a cop, right? I\'m definitely not.', 'Could you describe, for the record, what exactly you\'re selling?'];
-function makeBuyers() {
-  const st = Game.state, r = Math.random, out = [];
-  const pur = Math.max(st.purity, 60);
-  for (let i = 0; i < 3; i++) {
-    const cop = r() < (st.heat > 30 ? 0.22 : 0.08);
-    const want = randi(2, 5 + st.chapter);
-    const price = Math.round((35 + pur * 1.6) * rand(0.85, 1.25) * (1 + st.chapter * 0.07) / 5) * 5;
-    out.push({ look: Object.assign(lookOf('thug'), { name: choose(['Skinny Pete', 'Badger', 'Wendy B.', 'Combo', 'Tweaker Ted', 'Dutchie', 'Spooge', 'Gomez Jr.', 'Lil Ricky', 'Marisol']) }), want, price, cop, line: cop ? choose(COP_LINES) : choose(BUYER_LINES), done: false, haggles: 0 });
-  }
-  return out;
-}
-class TradeScene {
-  constructor() { this.t = 0; const st = Game.state; if (!st.buyers) st.buyers = makeBuyers(); this.buyers = st.buyers; this.log = null; }
-  enter() { Audio.music('hub'); }
-  update(dt) { this.t += dt; if (Input.hit('Escape')) Game.setScene(new HubScene()); }
-  sell(b) {
-    const st = Game.state, n = Math.min(b.want, st.bags);
-    if (b.cop) { st.bags -= n; st.heat = Math.min(100, st.heat + 35); b.done = true; Audio.play('bad'); this.log = { col: '#ff7050', text: b.look.name + ' flashes a badge! You shove past him and run. You lost ' + n + ' bags. Heat +35.' }; return; }
-    const cash = n * b.price; st.bags -= n; st.money += cash; st.stats.earned += cash; st.stats.bagsSold += n;
-    st.heat = Math.min(100, st.heat + n * (st.upgrades.foil ? 0.6 : 1.2)); b.done = true; if (st.bags <= 0) st.purity = 0;
-    Audio.play('cash'); this.log = { col: '#9fe88a', text: 'Sold ' + n + ' bags to ' + b.look.name + ' for ' + fmtMoney(cash) + '.' };
-    Game.save();
-  }
-  haggle(b) {
-    const st = Game.state; b.haggles++;
-    const chance = clamp(0.8 - b.haggles * 0.22 + (st.purity - 80) / 100, 0.1, 0.9);
-    if (Math.random() < chance) { b.price = Math.round(b.price * 1.15 / 5) * 5; Audio.play('uiok'); this.log = { col: '#ffd060', text: b.look.name + ': "Ugh... fine. ' + fmtMoney(b.price) + ' a bag."' }; }
-    else { b.done = true; b.walked = true; Audio.play('bad'); this.log = { col: '#ff9070', text: b.look.name + ': "Forget it, man. I\'ll go to the guy behind the laundromat."' }; }
-  }
-  draw(c) {
-    const th = THEMES.town, st = Game.state;
-    drawBackdrop(c, th, 800); drawGround(c, th, 800);
-    c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, 0, W, H);
-    drawFigure(c, poseStatic(150, GROUND, 1), LOOKS.jace, 1, {});
-    UI.panel(c, 20, 20, W - 40, 70, 0.85);
-    UI.text(c, 'DEL SOMBRA STREETS', 40, 54, 26, '#fff', 'left', true); UI.text(c, 'Day ' + st.day + ' · ' + (st.bags) + ' bags in hand' + (st.bags ? ' at ' + st.purity.toFixed(1) + '% purity' : ''), 40, 78, 15, '#bbb');
-    UI.text(c, 'HEAT ' + Math.round(st.heat) + '%', W - 220, 54, 22, st.heat > 50 ? '#ff6040' : '#ddd', 'left', true); UI.text(c, fmtMoney(st.money), W - 220, 78, 18, '#8fe07a', 'left', true);
-    this.buyers.forEach((b, i) => {
-      const x = 300 + i * 320, y = 120;
-      if (!b.done) drawFigure(c, poseStatic(x + 140, GROUND, -1), b.look, -1, {});
-      UI.panel(c, x, y, 290, 300, b.done ? 0.5 : 0.9);
-      drawPortrait(c, x + 14, y + 14, 80, b.look, b.done ? 'neutral' : 'smile');
-      UI.text(c, b.look.name, x + 108, y + 40, 20, b.done ? '#777' : '#fff', 'left', true);
-      if (b.done) { UI.text(c, b.walked ? 'Walked off' : 'Done', x + 108, y + 68, 15, '#888'); return; }
-      UI.text(c, 'Wants ' + b.want + ' bags', x + 108, y + 66, 15, '#bbb'); UI.text(c, fmtMoney(b.price) + ' / bag', x + 108, y + 88, 18, '#8fe07a', 'left', true);
-      c.font = `italic 15px ${FONT}`; c.fillStyle = '#e8dcc0'; wrapText(c, '"' + b.line + '"', x + 16, y + 130, 258, 20);
-      const n = Math.min(b.want, st.bags);
-      if (UI.btn(c, x + 16, y + 200, 258, 40, n > 0 ? 'SELL ' + n + ' FOR ' + fmtMoney(n * b.price) : 'NO PRODUCT', { disabled: n <= 0, size: 15 })) this.sell(b);
-      if (UI.btn(c, x + 16, y + 248, 124, 38, 'HAGGLE +15%', { disabled: n <= 0, size: 14 })) this.haggle(b);
-      if (UI.btn(c, x + 150, y + 248, 124, 38, 'PASS', { size: 14 })) { b.done = true; b.walked = true; }
-    });
-    if (this.log) { UI.panel(c, 300, 440, 940, 50, 0.9); UI.text(c, this.log.text, 320, 472, 17, this.log.col); }
-    if (this.buyers.every(b => b.done)) UI.text(c, 'No more buyers today. Sleep or cook in the RV to bring out new ones.', W / 2 + 120, 520, 16, '#ddd', 'center');
-    UI.text(c, 'Tip: purity raises prices. Some "buyers" are a little too curious.', W / 2 + 120, 548, 13, '#aaa', 'center');
-    if (UI.btn(c, 40, H - 90, 200, 50, 'LEAVE')) Game.setScene(new HubScene());
-    UI.cursor(c);
-  }
-}
-
 // ---------------------------------------------------------------- COOKING MINIGAME (fictional chemistry)
 const COOK_STEPS = [
   { id: 'heat', name: 'HEAT THE FLASK', help: 'Hold the mouse button to raise the temperature. Keep the needle in the green band.', walter: 'Steady heat, Jace. Chemistry punishes impatience.' },
@@ -3603,7 +3591,7 @@ class CookScene {
     const purity = Math.min(99.1, Math.round((62 + avg * 37.6) * 10) / 10);
     const st = Game.state; const bags = Math.round(5 + avg * 6 + (st.upgrades.glass ? 2 : 0));
     st.purity = st.bags > 0 ? (st.purity * st.bags + purity * bags) / (st.bags + bags) : purity;
-    st.bags += bags; st.day++; st.buyers = null; st.stats.cooks++; st.stats.bestPurity = Math.max(st.stats.bestPurity, purity);
+    st.bags += bags; advanceDay('cook'); st.stats.cooks++; st.stats.bestPurity = Math.max(st.stats.bestPurity, purity);
     this.result = { purity, bags, avg }; this.phase = 'result'; Game.save();
     Audio.play(purity > 95 ? 'uiok' : 'cash');
   }
@@ -3686,9 +3674,9 @@ class CookScene {
 
 // ---------------------------------------------------------------- ENDING + CREDITS
 class EndingScene {
-  constructor() { this.t = 0; this.x = 0; this.theme = THEMES.dusk; }
+  constructor() { this.t = 0; this.x = 0; this.theme = THEMES.dusk; this.epi = epilogueLines(); this.E = this.epi.length * 4 + 2; }
   enter() { Audio.music('menu'); }
-  update(dt) { this.t += dt; this.x += dt * 900; if (this.t > 46 || (this.t > 3 && Input.hit('Escape'))) { Game.setScene(new HubScene({ title: 'THE END', message: 'You finished Fixing Good. The desert is still out there: keep cooking, trading and fighting off the odd ambush for as long as you like.' })); } }
+  update(dt) { this.t += dt; this.x += dt * (this.t < this.E ? 120 : 900); if (this.t > this.E && Input.hit('Space') === false) {} if (this.t < this.E && (Input.hit('Space') || Input.mclick)) this.t = Math.ceil(this.t / 4) * 4; if (this.t > 46 + this.E || (this.t > 3 && Input.hit('Escape'))) { Game.setScene(new HubScene({ title: 'THE END', message: 'You finished Fixing Good. The desert is still out there: keep cooking, trading and fighting off the odd ambush for as long as you like.' })); } }
   draw(c) {
     drawBackdrop(c, this.theme, this.x); drawGround(c, this.theme, this.x);
     // Jace in the getaway car, screaming into the sunset
@@ -3697,13 +3685,666 @@ class EndingScene {
     c.fillStyle = LOOKS.jace.skin; c.beginPath(); c.arc(640, GROUND - 74 + bob, 10, 0, TAU); c.fill(); c.fillStyle = LOOKS.jace.hatColor; c.beginPath(); c.arc(640, GROUND - 77 + bob, 10, PI, TAU); c.fill();
     c.fillStyle = 'rgba(0,0,0,' + Math.max(0, 1 - this.t / 2) + ')'; c.fillRect(0, 0, W, H);
     c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, 0, W, 100); c.fillRect(0, H - 100, W, 100);
-    const t = this.t;
+    if (this.t < this.E) {
+      c.fillStyle = 'rgba(0,0,0,.82)'; c.fillRect(0, 0, W, H);
+      UI.text(c, 'EPILOGUE', W / 2, 150, 18, '#9fe88a', 'center', true);
+      let ey = 210; this.epi.forEach((l, i) => { const a = clamp((this.t - 1 - i * 4) / 1.2, 0, 1); if (a <= 0) return; c.globalAlpha = a; c.font = `21px ${FONT}`; c.fillStyle = '#f2ece0'; c.textAlign = 'center'; const lines = []; let line = ''; for (const w of l.split(' ')) { const tst = line ? line + ' ' + w : w; if (c.measureText(tst).width > 900 && line) { lines.push(line); line = w; } else line = tst; } lines.push(line); lines.forEach((ln, j) => c.fillText(ln, W / 2, ey + j * 27)); ey += lines.length * 27 + 26; c.textAlign = 'left'; c.globalAlpha = 1; });
+      UI.text(c, 'Click to continue', W - 20, H - 30, 13, '#888', 'right'); return;
+    }
+    const t = this.t - this.E;
     if (t > 2 && t < 12) { c.globalAlpha = Math.min(1, (t - 2) / 1.5, (12 - t) / 1.5); drawLogo(c, W / 2 - 160, 120, 0.85, 0.4); c.globalAlpha = 1; }
     const credits = ['FIXING GOOD', '', 'STARRING', 'Jace Pinkett', 'Walter Black', '', 'AND', 'Rafa "Loco" Vargas', 'The Cortez Twins', 'Augusto Fenn', 'Don Esteban', 'Uncle Dutch', 'Agent Hal Brewer', 'Morty Goodfellow, Esq.', 'Dusty', '', 'Every pixel, gunshot and note', 'was generated in code', '', 'STATS', 'Kills: ' + Game.state.stats.kills, 'Headshots: ' + Game.state.stats.heads, 'Batches cooked: ' + Game.state.stats.cooks, 'Best purity: ' + Game.state.stats.bestPurity.toFixed(1) + '%', 'Street earnings: ' + fmtMoney(Game.state.stats.earned), '', '', 'Thanks for playing.'];
     if (t > 12) { const off = (t - 12) * 48; credits.forEach((l, i) => { const y = H + 20 + i * 40 - off; if (y < 90 || y > H - 80) return; UI.text(c, l, W / 2, y, l === l.toUpperCase() && l.length > 2 ? 26 : 22, l === l.toUpperCase() ? '#9fe88a' : '#fff', 'center', l === l.toUpperCase()); }); }
     UI.text(c, 'Esc to skip', W - 20, H - 30, 13, '#888', 'right');
   }
 }
+
+/* ===== js/dealing.js ===== */
+'use strict';
+// ============================================================
+//  FIXING GOOD - the street game: districts, buyers, negotiation,
+//  cutting, reputation, fronts, corner dealers, daily simulation
+//  (all fictional; product is "blue", chemistry is made up)
+// ============================================================
+const DISTRICTS = {
+  streets: { name: 'Downtown Del Sombra', short: 'Downtown', mult: 1.0, demand: 5, cops: 0.10, robbers: 0.06, unlock: s => s.chapter >= 1, theme: 'town', blurb: 'Steady foot traffic. Cops on bikes. Nobody looks you in the eye.' },
+  south: { name: 'Southside Projects', short: 'Southside', mult: 0.85, demand: 7, cops: 0.04, robbers: 0.14, unlock: s => s.flags.southside, theme: 'southside', blurb: 'Lots of customers, little money, and somebody always watching from a stairwell.' },
+  campus: { name: 'University Row', short: 'Campus', mult: 1.35, demand: 4, cops: 0.18, robbers: 0.02, unlock: s => s.chapter >= 4, theme: 'town', blurb: 'Rich kids, finals week, campus police with something to prove.' },
+  truck: { name: 'Route 9 Truck Stop', short: 'Truck Stop', mult: 1.1, demand: 3, cops: 0.06, robbers: 0.10, bulk: true, unlock: s => s.chapter >= 5, theme: 'motel', blurb: 'Long-haul drivers buy in bulk and pay in cash. Some of them carry tire irons.' },
+  casino: { name: 'The Silver Spur Strip', short: 'Casino Strip', mult: 1.65, demand: 4, cops: 0.22, robbers: 0.05, unlock: s => s.chapter >= 9, theme: 'town', blurb: 'High rollers. Higher prices. Cameras on every corner.' },
+};
+const BUYER_TYPES = {
+  regular: { label: 'Regular', patience: [3, 4], maxMul: [0.95, 1.15], open: [0.7, 0.85], want: [2, 5], tells: ['Counts his cash twice.', 'Checks the street, but calmly.', 'Has bought before. Knows the routine.'] },
+  haggler: { label: 'Haggler', patience: [5, 6], maxMul: [0.85, 1.05], open: [0.55, 0.7], want: [3, 6], tells: ['Starts low on purpose. Smirks when you counter.', 'Talks about "the guy across the street" a lot.'] },
+  fiend: { label: 'Desperate', patience: [2, 3], maxMul: [1.1, 1.35], open: [0.8, 0.95], want: [1, 2], tells: ['Hands shaking. Hasn\'t slept.', 'Wants it now. Would pay anything. Can\'t pay much.'] },
+  rich: { label: 'Rich kid', patience: [2, 3], maxMul: [1.3, 1.7], open: [0.85, 1.0], want: [2, 4], tells: ['Designer sneakers. Phone worth more than your RV.', 'Calls you "bro" in a way that costs extra.'] },
+  bulk: { label: 'Bulk buyer', patience: [4, 5], maxMul: [0.8, 0.95], open: [0.6, 0.75], want: [8, 18], tells: ['Brought a gym bag. An empty one.', 'Wants a volume discount. Means business.'] },
+  cop: { label: 'UNDERCOVER COP', patience: [4, 6], maxMul: [1.2, 1.5], open: [0.9, 1.1], want: [3, 8], tells: ['Asks you to say what you\'re selling. Out loud.', 'Brand-new sneakers. Haircut too clean.', 'Keeps glancing at a van down the block.'] },
+  robber: { label: 'ROBBER', patience: [3, 5], maxMul: [1.0, 1.3], open: [0.9, 1.05], want: [4, 10], tells: ['Keeps one hand in his jacket.', 'Wants to finish the deal "around the corner".', 'Agrees to every price too fast.'] },
+};
+const BUYER_NAMES = ['Skinny Pete', 'Badger', 'Wendy B.', 'Combo', 'Tweaker Ted', 'Dutchie', 'Spooge', 'Gomez Jr.', 'Lil Ricky', 'Marisol', 'Tuck', 'Ramona', 'Chalky', 'Professor Dan', 'Big Mo', 'Juicy', 'Hector Jr.', 'Kat', 'Pinto', 'Shy Ronnie', 'Tavo', 'Becca', 'Deuce', 'Mickey Two-Times'];
+const OPENERS = {
+  regular: ['Usual amount. Usual price, right?', 'Heard you got the blue. Let\'s do this quick.', 'My guy said you\'re reliable.'],
+  haggler: ['I\'ll give you {o} a bag. That\'s generous, trust me.', '{o}. Take it or leave it. I can wait.', 'Market price is {o}. Everybody knows that.'],
+  fiend: ['Please, man. Please. I got {o} a bag. I\'ll get more tomorrow.', 'Just one. Or two. I\'m good for it, I swear.', 'You gotta help me out, man. It\'s been days.'],
+  rich: ['Bro. Is it the blue? Name a price, I\'m in a hurry.', 'My dad\'s card doesn\'t work here, so... cash. Lots.', 'I\'ve got a party in an hour. Make it worth it.'],
+  bulk: ['I move weight. You give me a price for a dozen.', 'Truckers on three routes want this. I want a lot.', 'Bulk deal. Volume price. Let\'s talk.'],
+  cop: ['So how much of the... product... do you have available, sir?', 'Before we start, could you describe what you\'re selling? For clarity.', 'I\'m definitely not a police officer. How much for the methamphetamine?'],
+  robber: ['Sure, whatever you want. Let\'s just step into the alley.', '{o}? Deal. Deal deal deal. Come on.', 'I got cash. Lots of it. Follow me.'],
+};
+const REACT = {
+  accept: ['Deal.', 'Fine. Pleasure doing business.', 'Yeah, okay. Okay.', 'You drive a hard bargain.'],
+  counter: ['Nah. {o}, best I can do.', 'Come on, man. {o}.', 'Too rich. How about {o}?', 'I can go {o}. Not a dollar more.'],
+  insulted: ['Are you kidding me?', 'Get outta here with that price.', 'That\'s robbery, man.'],
+  leave: ['Forget it. I\'ll find someone else.', 'You\'re wasting my time.', 'Nah. I\'m out.'],
+  quality: ['Ninety-plus? ...Okay, I believe it. It\'s worth more.', 'That colour, man. Yeah. That\'s the real thing.'],
+  qualityBad: ['That\'s not blue, that\'s grey. Don\'t lie to me.', 'Quality? This looks like chalk.'],
+  pressure: ['Okay, okay! Relax. I\'ll pay more.', 'Alright, man, no need for that.'],
+  pressureBad: ['Did you just threaten me? We\'re done.', 'Wow. Okay. My lawyer\'s gonna hear about this.'],
+  sweet: ['A free one? Now we\'re talking.', 'Ha! Okay, you\'re alright.'],
+  bluffWin: ['Wait, wait! Okay. {o}. Come back.', 'Hold on! Fine, {o}.'],
+};
+
+// ---------- state ----------
+function dealState() {
+  const st = Game.state;
+  if (st.rep === undefined) st.rep = 20;
+  if (!st.districts) st.districts = {};
+  for (const k in DISTRICTS) if (!st.districts[k]) st.districts[k] = { sat: 0, buyers: null, day: 0 };
+  if (!st.dealers) st.dealers = [];
+  if (!st.fronts) st.fronts = [];
+  if (!st.news) st.news = [];
+  if (!st.extraJobs) st.extraJobs = [];
+  if (st.stats.deals === undefined) st.stats.deals = 0;
+  return st;
+}
+function marketPrice(dk) {
+  const st = dealState(), D = DISTRICTS[dk], ds = st.districts[dk];
+  const pur = Math.max(st.purity || 0, 30);
+  const repF = 0.85 + st.rep / 100 * 0.35;
+  return Math.max(10, (25 + pur * 1.8) * D.mult * (1 + st.chapter * 0.06) * repF * (1 - ds.sat * 0.45));
+}
+function makeDistrictBuyers(dk) {
+  const st = dealState(), D = DISTRICTS[dk], n = Math.max(2, Math.round(D.demand * (0.6 + st.rep / 125) * (1 - st.districts[dk].sat * 0.5)));
+  const out = [], used = new Set(), base = marketPrice(dk);
+  for (let i = 0; i < n; i++) {
+    const r = Math.random(); let type;
+    const copP = D.cops * (1 + st.heat / 60), robP = D.robbers * (1 - st.rep / 200);
+    if (r < copP) type = 'cop'; else if (r < copP + robP) type = 'robber';
+    else type = D.bulk && Math.random() < 0.5 ? 'bulk' : choose(dk === 'campus' || dk === 'casino' ? ['rich', 'rich', 'regular', 'haggler'] : dk === 'south' ? ['fiend', 'fiend', 'regular', 'haggler'] : ['regular', 'regular', 'haggler', 'fiend', 'rich']);
+    const T = BUYER_TYPES[type];
+    let name; do { name = choose(BUYER_NAMES); } while (used.has(name) && used.size < BUYER_NAMES.length); used.add(name);
+    const max = Math.round(base * rand(...T.maxMul)), offer = Math.round(max * rand(...T.open) * (type === 'robber' ? 1 : 0.9));
+    const look = Object.assign(lookOf(type === 'cop' ? 'guard' : type === 'rich' ? 'thug' : choose(['thug', 'biker', 'thug'])), { name });
+    if (type === 'cop') { look.hat = null; look.badge = false; look.shirt = '#e8e8e0'; look.shoes = '#fafafa'; }
+    if (type === 'rich') { look.shirt = choose(['#e0607a', '#60a0e0', '#f0f0f0']); look.glasses = 'shades'; look.chain = true; }
+    const want = randi(...T.want);
+    out.push({ type, name, look, max, offer, want, patience: randi(...T.patience), maxPat: 0, read: false, done: false, opener: choose(OPENERS[type]).replace('{o}', fmtMoney(offer)), mood: 0 });
+    out[out.length - 1].maxPat = out[out.length - 1].patience;
+  }
+  return out;
+}
+function districtBuyers(dk) { const st = dealState(), ds = st.districts[dk]; if (!ds.buyers || ds.day !== st.day) { ds.buyers = makeDistrictBuyers(dk); ds.day = st.day; } return ds.buyers; }
+
+// ---------- the day ticks over (cook / sleep) ----------
+function advanceDay(reason) {
+  const st = dealState(); st.day++; st.buyers = null;
+  st.heat = Math.max(0, st.heat - (reason === 'sleep' ? 8 : 3));
+  const news = [];
+  for (const k in st.districts) { const ds = st.districts[k]; ds.sat = Math.max(0, ds.sat * 0.6 - 0.05); ds.buyers = null; }
+  // corner dealers work the day
+  for (const d of st.dealers) {
+    if (d.status !== 'active' || d.bags <= 0) { if (d.status === 'active' && d.bags <= 0) news.push(`${d.name} is out of product on ${DISTRICTS[d.district].short}.`); continue; }
+    const D = DISTRICTS[d.district], ds = st.districts[d.district];
+    const r = Math.random();
+    if (r < D.cops * 0.6 * (1 + st.heat / 50) * (1.2 - d.skill * 0.5)) { news.push(`${d.name} got picked up by the cops on ${D.short}. ${d.bags} bags gone. Heat +6.`); d.bags = 0; d.status = 'arrested'; d.back = st.day + 3; st.heat = Math.min(100, st.heat + 6); continue; }
+    if (r < D.cops * 0.6 + D.robbers * 0.7 * (st.districts[d.district].rival ? 2 : 1)) { const lost = Math.ceil(d.bags * 0.6); d.bags -= lost; news.push(`${d.name} got jumped on ${D.short} and lost ${lost} bags. Somebody needs to answer for that.`); st.extraJobs.push({ kind: 'turf', district: d.district, dealer: d.name, seed: randi(1, 1e9) }); continue; }
+    const sold = Math.min(d.bags, Math.round(D.demand * (0.6 + d.skill) * (1 - ds.sat * 0.5)));
+    const price = marketPrice(d.district) * 0.8, gross = Math.round(sold * price);
+    const skim = d.loyalty < 40 && Math.random() < 0.4 ? Math.round(gross * rand(0.15, 0.35)) : 0;
+    const yours = Math.round(gross * 0.7) - skim;
+    d.bags -= sold; st.money += yours; st.stats.earned += yours; ds.sat = Math.min(1, ds.sat + sold * 0.02);
+    st.heat = Math.min(100, st.heat + sold * 0.3);
+    news.push(`${d.name} sold ${sold} bags on ${D.short}: ${fmtMoney(yours)} for you${skim ? ` (the count is ${fmtMoney(skim)} short...)` : '.'}`);
+    if (skim && Math.random() < 0.5) news.push(`Word is ${d.name} is skimming. Loyalty is slipping.`);
+  }
+  for (const d of st.dealers) if (d.status === 'arrested' && st.day >= d.back) { d.status = 'active'; news.push(`${d.name} made bail and is back on ${DISTRICTS[d.district].short}. They didn\'t talk. This time.`); }
+  // fronts come due
+  for (const f of st.fronts) {
+    if (f.settled || st.day < f.due) continue;
+    f.settled = true;
+    if (Math.random() < f.reliability + st.rep / 300) { st.money += f.owed; news.push(`${f.name} paid back the ${fmtMoney(f.owed)} they owed you. With interest.`); st.rep = Math.min(100, st.rep + 2); }
+    else { news.push(`${f.name} didn\'t pay the ${fmtMoney(f.owed)} they owe. Dusty\'s cousin can arrange a visit.`); st.extraJobs.push({ kind: 'collect', name: f.name, owed: f.owed, district: f.district, seed: randi(1, 1e9) }); st.rep = Math.max(0, st.rep - 3); }
+  }
+  st.fronts = st.fronts.filter(f => !f.settled);
+  if (st.rep > 20) st.rep = Math.max(20, st.rep - 0.5);
+  st.news = news;
+  return news;
+}
+
+// ---------- district screen ----------
+class DistrictScene {
+  constructor(dk) { this.dk = dk; this.t = 0; this.log = null; this.panel = null; dealState(); this.buyers = districtBuyers(dk); }
+  enter() { Audio.music('hub'); }
+  update(dt) { this.t += dt; if (Input.hit('Escape')) { if (this.panel) this.panel = null; else Game.setScene(new HubScene()); } }
+  dealerHere() { return Game.state.dealers.find(d => d.district === this.dk && d.status !== 'dead'); }
+  draw(c) {
+    const st = Game.state, D = DISTRICTS[this.dk], ds = st.districts[this.dk], th = THEMES[D.theme] || THEMES.town;
+    drawBackdrop(c, th, 800 + this.dk.length * 300); drawGround(c, th, 800);
+    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0, 0, W, H);
+    drawFigure(c, poseStatic(120, GROUND, 1), LOOKS.jace, 1, {});
+    // header
+    UI.panel(c, 20, 16, W - 40, 92, 0.88);
+    UI.text(c, D.name.toUpperCase(), 40, 50, 26, '#fff', 'left', true);
+    UI.text(c, D.blurb, 40, 76, 14, '#bbb');
+    UI.text(c, `Day ${st.day} · ${st.bags} bags${st.bags ? ' at ' + st.purity.toFixed(1) + '%' : ''} · street price ~${fmtMoney(marketPrice(this.dk))}/bag`, 40, 98, 14, '#9fd8f0');
+    const stat = (x, k, v, col) => { UI.text(c, k, x, 44, 11, '#999'); UI.text(c, v, x, 68, 18, col, 'left', true); };
+    stat(W - 520, 'REPUTATION', Math.round(st.rep) + '/100', st.rep > 60 ? '#9fe88a' : '#ddd'); stat(W - 410, 'HEAT', Math.round(st.heat) + '%', st.heat > 50 ? '#ff6040' : '#ddd');
+    stat(W - 320, 'MARKET', ds.sat > 0.6 ? 'FLOODED' : ds.sat > 0.3 ? 'SLOW' : 'HUNGRY', ds.sat > 0.6 ? '#ff9070' : ds.sat > 0.3 ? '#f0c060' : '#9fe88a'); stat(W - 200, 'CASH', fmtMoney(st.money), '#8fe07a');
+    // buyers
+    const list = this.buyers, cw = 232;
+    list.forEach((b, i) => {
+      const x = 240 + (i % 4) * (cw + 12), y = 124 + Math.floor(i / 4) * 228;
+      UI.panel(c, x, y, cw, 216, b.done ? 0.45 : 0.9);
+      drawPortrait(c, x + 12, y + 12, 64, b.look, b.done ? 'neutral' : b.type === 'fiend' ? 'worried' : 'neutral');
+      UI.text(c, b.name, x + 86, y + 34, 18, b.done ? '#777' : '#fff', 'left', true);
+      const rt = b.readAs || b.type; UI.text(c, b.read ? BUYER_TYPES[rt].label : '???', x + 86, y + 54, 13, b.read ? (rt === 'cop' || rt === 'robber' ? '#ff6050' : '#f0c060') : '#888', 'left', true);
+      if (b.done) { UI.text(c, b.result || 'Gone', x + 86, y + 74, 13, '#999'); return; }
+      UI.text(c, 'Wants ~' + b.want + ' bags', x + 86, y + 72, 13, '#bbb');
+      c.font = `italic 14px ${FONT}`; c.fillStyle = '#e8dcc0'; wrapText(c, '"' + b.opener + '"', x + 14, y + 104, cw - 28, 18);
+      if (UI.btn(c, x + 14, y + 166, cw - 28, 38, 'APPROACH', { size: 15, disabled: st.bags <= 0 })) Game.setScene(new NegotiationScene(this.dk, b, this));
+    });
+    if (!list.some(b => !b.done)) UI.text(c, 'Nobody else is buying here today. Try another district, or come back tomorrow.', 240 + 2 * (cw + 12) - 6, 400, 16, '#ddd', 'center');
+    // side panel: crew + actions
+    UI.panel(c, 20, 124, 204, 440, 0.88);
+    UI.text(c, 'YOUR CORNER', 36, 152, 15, '#ffd060', 'left', true);
+    const dl = this.dealerHere();
+    if (dl) {
+      drawPortrait(c, 36, 166, 56, dl.look);
+      UI.text(c, dl.name, 100, 186, 16, '#fff', 'left', true); UI.text(c, dl.status === 'active' ? dl.bags + ' bags on hand' : dl.status === 'arrested' ? 'In custody' : '—', 100, 206, 13, dl.status === 'active' ? '#bbb' : '#ff8060');
+      UI.text(c, 'Loyalty ' + Math.round(dl.loyalty) + ' · Skill ' + Math.round(dl.skill * 100), 36, 244, 12, '#aaa');
+      const give = Math.min(5, st.bags);
+      if (UI.btn(c, 36, 256, 172, 34, give > 0 ? `GIVE ${give} BAGS` : 'NO PRODUCT', { size: 13, disabled: give <= 0 || dl.status !== 'active' })) { dl.bags += give; dl.purity = st.purity; st.bags -= give; if (st.bags <= 0) st.purity = 0; Audio.play('pickup'); Game.save(); }
+      if (UI.btn(c, 36, 296, 172, 34, `BONUS $200 (+LOYALTY)`, { size: 12, disabled: st.money < 200 })) { st.money -= 200; dl.loyalty = Math.min(100, dl.loyalty + 15); Audio.play('cash'); Game.save(); }
+    } else {
+      const cost = 500 + st.chapter * 100, ok = DISTRICTS[this.dk] && (this.dk !== 'south' || st.flags.southside);
+      c.font = `13px ${FONT}`; c.fillStyle = '#bbb'; wrapText(c, 'Hire a corner dealer. They sell for you every day while you\'re cooking. You get 70%.', 36, 176, 172, 18);
+      if (UI.btn(c, 36, 250, 172, 40, 'HIRE ' + fmtMoney(cost), { size: 14, disabled: st.money < cost || !ok })) { st.money -= cost; st.dealers.push(makeDealer(this.dk)); Audio.play('cash'); Game.save(); }
+    }
+    UI.text(c, 'PRODUCT', 36, 362, 15, '#ffd060', 'left', true);
+    c.font = `12px ${FONT}`; c.fillStyle = '#bbb'; wrapText(c, 'Cut 4 bags into 6 with filler. More bags, lower purity. Buyers notice.', 36, 384, 172, 16);
+    if (UI.btn(c, 36, 430, 172, 36, 'CUT PRODUCT', { size: 14, disabled: st.bags < 4 || st.purity < 35 })) { st.bags += 2; st.purity = Math.max(20, st.purity * 4 / 6); st.flags.cut = (st.flags.cut || 0) + 1; Audio.play('clank'); Game.save(); this.log = { col: '#f0c060', text: 'You cut 4 bags into 6. Purity is now ' + st.purity.toFixed(1) + '%.' }; }
+    UI.text(c, `Fronts out: ${st.fronts.length} · Dealers: ${st.dealers.filter(d => d.status === 'active').length}`, 36, 496, 12, '#999');
+    if (this.log) { UI.panel(c, 240, H - 80, W - 260, 50, 0.9); UI.text(c, this.log.text, 258, H - 48, 16, this.log.col); }
+    if (UI.btn(c, 20, H - 80, 204, 50, 'LEAVE')) Game.setScene(new HubScene());
+    UI.cursor(c);
+  }
+}
+const DEALER_NAMES = ['Nico', 'Bodie T.', 'Lil Sal', 'Mouse', 'Chuy', 'Darnell', 'Pepper', 'Wes', 'Tino', 'Kai'];
+function makeDealer(dk) {
+  const st = Game.state, used = new Set(st.dealers.map(d => d.name));
+  const name = DEALER_NAMES.find(n => !used.has(n) && n !== 'Nico') || 'Dealer #' + (st.dealers.length + 1);
+  return { name, district: dk, bags: 0, purity: 0, loyalty: randi(45, 75), skill: rand(0.3, 0.8), status: 'active', look: Object.assign(lookOf('thug'), { name }) };
+}
+
+// ---------- one-on-one negotiation ----------
+class NegotiationScene {
+  constructor(dk, b, back) {
+    this.dk = dk; this.b = b; this.back = back; this.t = 0;
+    const st = Game.state; this.qty = Math.max(1, Math.min(b.want, st.bags)); this.ask = Math.round(Math.max(b.offer * 1.25, marketPrice(dk)) / 5) * 5;
+    this.lines = [[b.name, b.opener]]; this.over = false; this.result = null; this.used = {}; this.pitched = 0;
+  }
+  enter() { Audio.music('tense'); }
+  say(who, text) { this.lines.push([who, text]); if (this.lines.length > 6) this.lines.shift(); }
+  react(k, o) { return choose(REACT[k]).replace('{o}', fmtMoney(o)); }
+  tick(cost) { const b = this.b; b.patience -= cost; if (b.patience <= 0) { this.say(b.name, this.react('leave')); this.end('walked', 'Walked off'); return true; } return false; }
+  end(kind, result) { this.over = true; this.b.done = true; this.b.result = result; this.result = kind; }
+  offerFor() { return this.b.offer; }
+  // the moment of truth
+  close(price) {
+    const st = Game.state, b = this.b, n = Math.min(this.qty, st.bags), total = price * n;
+    if (b.type === 'cop') {
+      Audio.play('bad'); this.say(b.name, 'DEA! Hands where I can see them!');
+      st.bags -= n; st.heat = Math.min(100, st.heat + 30); st.rep = Math.max(0, st.rep - 5);
+      if (st.bags <= 0) st.purity = 0;
+      this.end('busted', 'Undercover cop'); this.outcome = { title: 'BUSTED', col: '#ff5040', text: `${b.name} flashes a badge. You throw the bags in a storm drain and run. ${n} bags gone. Heat +30. Morty is going to love this.` };
+      Game.save(); return;
+    }
+    if (b.type === 'robber') {
+      Audio.play('bad'); this.say(b.name, 'Change of plans. Give me everything. Slowly.');
+      this.end('robbed', 'Robber'); this.robbery = { n: Math.min(st.bags, n + randi(2, 6)) }; return;
+    }
+    st.bags -= n; st.money += total; st.stats.earned += total; st.stats.bagsSold += n; st.stats.deals++;
+    if (st.bags <= 0) st.purity = 0;
+    const ds = st.districts[this.dk]; ds.sat = Math.min(1, ds.sat + n * 0.025);
+    st.heat = Math.min(100, st.heat + n * (st.upgrades.foil ? 0.5 : 1.0));
+    let repD = 1 + (st.purity >= 90 ? 1 : 0) - (st.purity < 60 ? 3 : 0) - (price > b.max * 1.05 ? 1 : 0);
+    st.rep = clamp(st.rep + repD, 0, 100);
+    Audio.play('cash'); this.say(b.name, this.react('accept'));
+    this.end('sold', `Bought ${n} for ${fmtMoney(total)}`);
+    this.outcome = { title: 'DEAL', col: '#9fe88a', text: `Sold ${n} bags at ${fmtMoney(price)} for ${fmtMoney(total)}. ${price >= b.max * 0.97 ? 'You got every dollar out of them.' : price < b.max * 0.8 ? 'You left money on the table.' : 'Fair deal.'} Rep ${repD >= 0 ? '+' : ''}${repD}.` };
+    Game.save();
+  }
+  doAsk() {
+    const b = this.b;
+    if (this.ask <= b.offer) return this.close(this.ask);
+    if (this.ask <= b.max) { if (Math.random() < 0.75 || b.type === 'rich') return this.close(this.ask); }
+    const over = (this.ask - b.max) / b.max;
+    if (over > 0.45) { this.say(b.name, this.react('insulted')); if (this.tick(2)) return; }
+    else { b.offer = Math.min(b.max, Math.round((b.offer + (Math.min(this.ask, b.max) - b.offer) * rand(0.35, 0.65)) / 5) * 5); this.say(b.name, this.react('counter', b.offer)); if (this.tick(1)) return; }
+  }
+  doQuality() {
+    const st = Game.state, b = this.b; this.used.quality = true; this.say('jace', 'Look at it. ' + st.purity.toFixed(1) + ' percent. You won\'t find better in this state.');
+    if (st.purity >= 85) { b.max = Math.round(b.max * 1.1); b.offer = Math.round((b.offer * 1.08) / 5) * 5; this.say(b.name, this.react('quality')); }
+    else if (st.purity < 65) { this.say(b.name, this.react('qualityBad')); this.tick(1); b.max = Math.round(b.max * 0.9); }
+    else { this.say(b.name, 'Eh. It\'s alright.'); }
+  }
+  doPressure() {
+    const b = this.b; this.used.pressure = true; this.say('jace', 'You want to think real hard about lowballing me.');
+    if (b.type === 'robber') { this.say(b.name, 'Heh. Tough guy. Let\'s skip ahead then.'); return this.close(b.offer); }
+    if (b.type === 'fiend' || b.type === 'haggler' && Math.random() < 0.5 || Game.state.rep > 60 && Math.random() < 0.6) { b.offer = Math.min(b.max, Math.round(b.offer * 1.12 / 5) * 5); this.say(b.name, this.react('pressure')); Game.state.rep = Math.min(100, Game.state.rep + 0.5); }
+    else { this.say(b.name, this.react('pressureBad')); this.tick(2); }
+  }
+  doSweeten() {
+    const st = Game.state, b = this.b; if (st.bags <= this.qty) return; this.used.sweet = true;
+    st.bags--; b.max = Math.round(b.max * 1.1); b.patience = Math.min(b.maxPat + 1, b.patience + 1); b.offer = Math.round(b.offer * 1.05 / 5) * 5;
+    this.say('jace', 'Here. One on the house. For the trouble.'); this.say(b.name, this.react('sweet')); st.rep = Math.min(100, st.rep + 1);
+  }
+  doRead() {
+    const st = Game.state, b = this.b; this.used.read = true; b.read = true;
+    const skill = 0.55 + st.rep / 250 + Math.min(0.2, st.stats.deals / 100);
+    let tellType = b.type;
+    if ((b.type === 'cop' || b.type === 'robber') && Math.random() > skill) tellType = 'regular'; // you misread them
+    if (tellType !== b.type) b.misread = true;
+    this.say('narrator', '(You size them up.) ' + choose(BUYER_TYPES[tellType].tells));
+    this.readAs = tellType; b.readAs = tellType; this.tick(0.5);
+  }
+  doFront() {
+    const st = Game.state, b = this.b, n = Math.min(this.qty, st.bags); this.used.front = true;
+    if (b.type === 'cop') return this.close(this.ask);
+    if (b.type === 'robber' || b.type === 'bulk' || b.type === 'rich') { this.say(b.name, 'Credit? Nah, I pay cash.'); return; }
+    const owed = Math.round(this.ask * n * 1.3);
+    st.bags -= n; if (st.bags <= 0) st.purity = 0;
+    st.fronts.push({ name: b.name, owed, due: st.day + 3, reliability: b.type === 'fiend' ? 0.35 : 0.7, district: this.dk });
+    this.say('jace', `Take it. You owe me ${fmtMoney(owed)} in three days.`); this.say(b.name, b.type === 'fiend' ? 'Thank you. Thank you. I\'ll pay, I swear on my mother.' : 'Three days. You got it.');
+    this.end('front', `Fronted ${n} (owes ${fmtMoney(owed)})`); this.outcome = { title: 'FRONTED', col: '#f0c060', text: `${b.name} walks off with ${n} bags and owes you ${fmtMoney(owed)} in 3 days. If they don't pay, it becomes a collection job at the Dog House.` }; Game.save();
+  }
+  doWalk() {
+    const b = this.b; this.say('jace', 'You know what? Forget it.');
+    if (b.max > b.offer * 1.1 && Math.random() < 0.55 + Game.state.rep / 300) { b.offer = Math.round(((b.offer + b.max) / 2) / 5) * 5; this.say(b.name, this.react('bluffWin', b.offer)); this.tick(1); }
+    else { this.say(b.name, 'Fine by me.'); this.end('walked', 'You walked away'); }
+  }
+  update(dt) {
+    this.t += dt;
+    if (this.robbery) return;
+    if (this.over) { if (Input.hit('Escape') || Input.hit('Space')) Game.setScene(this.back); return; }
+    if (Input.hit('Escape')) { this.b.done = false; Game.setScene(this.back); }
+  }
+  draw(c) {
+    const st = Game.state, b = this.b, D = DISTRICTS[this.dk], th = THEMES[D.theme] || THEMES.town;
+    drawBackdrop(c, th, 1500); drawGround(c, th, 1500);
+    c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, 0, W, H);
+    drawFigure(c, poseStatic(420, GROUND, 1), LOOKS.jace, 1, {}); drawFigure(c, poseStatic(520, GROUND, -1), b.look, -1, {});
+    // buyer card
+    UI.panel(c, 30, 24, 300, 300, 0.92);
+    drawPortrait(c, 50, 44, 120, b.look, this.over && this.result === 'sold' ? 'smile' : b.patience <= 1 ? 'angry' : 'neutral');
+    UI.text(c, b.name, 184, 70, 22, '#fff', 'left', true);
+    UI.text(c, b.read ? 'Reads as: ' + BUYER_TYPES[this.readAs || b.type].label : 'Type: ???', 184, 96, 14, b.read ? ((this.readAs || b.type) === 'cop' || (this.readAs || b.type) === 'robber' ? '#ff6050' : '#f0c060') : '#888', 'left', true);
+    UI.text(c, 'Wants ~' + b.want + ' bags', 184, 120, 14, '#bbb');
+    UI.text(c, 'PATIENCE', 50, 190, 12, '#999');
+    for (let i = 0; i < b.maxPat + 1; i++) { c.fillStyle = i < b.patience ? (b.patience <= 1 ? '#e05040' : '#e8c060') : 'rgba(255,255,255,.12)'; rrect(c, 50 + i * 30, 198, 24, 12, 3); c.fill(); }
+    UI.text(c, 'THEIR OFFER', 50, 240, 12, '#999'); UI.text(c, fmtMoney(b.offer) + ' / bag', 50, 270, 28, '#8fe07a', 'left', true);
+    UI.text(c, 'Street price here ~' + fmtMoney(marketPrice(this.dk)), 50, 300, 13, '#9fd8f0');
+    // conversation
+    UI.panel(c, 350, 24, W - 380, 300, 0.92);
+    UI.text(c, 'THE DEAL — ' + D.short.toUpperCase(), 370, 54, 16, '#ffd060', 'left', true);
+    let y = 86;
+    for (const [who, text] of this.lines) {
+      const me = who === 'jace', nar = who === 'narrator';
+      c.font = `bold 13px ${FONT}`; c.fillStyle = me ? '#ffb070' : nar ? '#9fd8f0' : '#ffd060'; c.fillText(me ? 'JACE' : nar ? '' : who.toUpperCase(), 370, y);
+      c.font = `${nar ? 'italic ' : ''}16px ${FONT}`; c.fillStyle = '#eee'; y = wrapText(c, text, 470, y, W - 520, 20) + 30;
+    }
+    if (this.robbery) return this.drawRobbery(c);
+    if (this.over) {
+      const o = this.outcome || { title: 'NO DEAL', col: '#ff9070', text: b.name + ' is gone.' };
+      UI.panel(c, 350, 340, W - 380, 160, 0.95); UI.text(c, o.title, 370, 380, 30, o.col, 'left', true);
+      c.font = `17px ${FONT}`; c.fillStyle = '#eee'; wrapText(c, o.text, 370, 414, W - 420, 24);
+      if (UI.btn(c, W - 260, 520, 230, 50, 'BACK TO THE CORNER')) Game.setScene(this.back);
+      UI.cursor(c); return;
+    }
+    // controls
+    UI.panel(c, 30, 340, 300, 230, 0.92);
+    UI.text(c, 'QUANTITY', 50, 370, 12, '#999');
+    if (UI.btn(c, 50, 380, 40, 36, '−', { size: 20 })) this.qty = Math.max(1, this.qty - 1);
+    UI.text(c, this.qty + ' bags', 140, 405, 22, '#fff', 'center', true);
+    if (UI.btn(c, 190, 380, 40, 36, '+', { size: 20 })) this.qty = Math.min(st.bags, this.qty + 1);
+    UI.text(c, 'of ' + st.bags + ' (' + st.purity.toFixed(0) + '%)', 240, 404, 12, '#999');
+    UI.text(c, 'YOUR PRICE PER BAG', 50, 444, 12, '#999');
+    const step = (x, d, l) => { if (UI.btn(c, x, 452, 44, 32, l, { size: 13 })) this.ask = Math.max(5, this.ask + d); };
+    step(50, -20, '−20'); step(98, -5, '−5'); step(198, 5, '+5'); step(246, 20, '+20');
+    UI.text(c, fmtMoney(this.ask), 172, 476, 20, '#8fe07a', 'center', true);
+    UI.text(c, 'Total: ' + fmtMoney(this.ask * this.qty), 50, 512, 15, '#ddd');
+    if (UI.btn(c, 50, 522, 270, 40, 'ASK ' + fmtMoney(this.ask) + ' A BAG', { size: 15, hot: '#3d7a3a' })) this.doAsk();
+    // tactics
+    UI.panel(c, 350, 340, W - 380, 230, 0.92);
+    UI.text(c, 'TACTICS', 370, 370, 14, '#ffd060', 'left', true);
+    const tac = [
+      ['ACCEPT ' + fmtMoney(b.offer), 'Take their offer and close.', () => this.close(b.offer), false],
+      ['READ THEM', 'Look for tells. Cop? Robber? Loaded?', () => this.doRead(), this.used.read],
+      ['TALK QUALITY', 'Works if your purity is high.', () => this.doQuality(), this.used.quality],
+      ['APPLY PRESSURE', 'Desperate people cave. Others walk.', () => this.doPressure(), this.used.pressure],
+      ['SWEETENER (+1 FREE)', 'A free bag buys patience and goodwill.', () => this.doSweeten(), this.used.sweet || st.bags <= this.qty],
+      ['FRONT IT (CREDIT)', 'They pay 130% in 3 days. Maybe.', () => this.doFront(), this.used.front],
+      ['WALK AWAY (BLUFF)', 'They might call you back higher.', () => this.doWalk(), false],
+    ];
+    tac.forEach(([l, sub, fn, dis], i) => { const x = 370 + (i % 4) * 214, yy = 384 + Math.floor(i / 4) * 86; if (UI.btn(c, x, yy, 204, 74, l, { size: 15, sub, disabled: dis })) fn(); });
+    UI.cursor(c);
+  }
+  drawRobbery(c) {
+    const st = Game.state, r = this.robbery;
+    UI.panel(c, 350, 340, W - 380, 230, 0.95);
+    UI.text(c, 'IT\'S A ROBBERY', 370, 380, 30, '#ff5040', 'left', true);
+    c.font = `17px ${FONT}`; c.fillStyle = '#eee'; wrapText(c, `${this.b.name} pulls a knife. Two of his friends step out of the alley behind you. He wants everything you're carrying (${r.n} bags).`, 370, 414, W - 420, 24);
+    if (UI.btn(c, 370, 480, 260, 60, 'FIGHT', { sub: 'Street fight. Win and keep it all (+rep).', hot: '#8a2a1a' })) {
+      const snapBags = st.bags; Game.setScene(new LevelScene('alley', () => { st.rep = Math.min(100, st.rep + 6); Game.setScene(new HubScene({ title: 'ROBBERY FOILED', message: `You left ${this.b.name}'s crew in the alley. Word gets around: nobody robs Jace. Rep +6.` })); }));
+      return;
+    }
+    if (UI.btn(c, 650, 480, 260, 60, 'HAND IT OVER', { sub: 'Lose ' + r.n + ' bags. Live to deal again.' })) { st.bags -= r.n; if (st.bags <= 0) { st.bags = 0; st.purity = 0; } st.rep = Math.max(0, st.rep - 6); this.robbery = null; this.outcome = { title: 'ROBBED', col: '#ff9070', text: `You hand over ${r.n} bags. They laugh the whole way down the block. Rep -6.` }; Game.save(); }
+    UI.cursor(c);
+  }
+}
+
+// ---------- crew overview (from the RV camp) ----------
+class CrewScene {
+  constructor() { dealState(); }
+  enter() { Audio.music('hub'); }
+  update() { if (Input.hit('Escape')) Game.setScene(new CampScene()); }
+  draw(c) {
+    const st = Game.state;
+    const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1a1410'); g.addColorStop(1, '#0a0806'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+    UI.text(c, 'THE OPERATION', 40, 64, 34, '#ffd060', 'left', true);
+    UI.text(c, `Day ${st.day} · Rep ${Math.round(st.rep)}/100 · Heat ${Math.round(st.heat)}% · ${fmtMoney(st.money)}`, 40, 94, 16, '#bbb');
+    UI.text(c, 'CORNER DEALERS', 40, 140, 16, '#fff', 'left', true);
+    if (!st.dealers.length) UI.text(c, 'Nobody works for you yet. Hire dealers in a district.', 40, 170, 15, '#999');
+    st.dealers.forEach((d, i) => {
+      const y = 156 + i * 72; UI.panel(c, 40, y, 600, 64, 0.85); drawPortrait(c, 48, y + 6, 52, d.look || LOOKS.jace);
+      UI.text(c, d.name + (d.status === 'dead' ? '  †' : ''), 112, y + 26, 17, d.status === 'dead' ? '#a06060' : '#fff', 'left', true);
+      UI.text(c, `${DISTRICTS[d.district].short} · ${d.status === 'active' ? d.bags + ' bags' : d.status === 'arrested' ? 'in custody' : 'dead'} · loyalty ${Math.round(d.loyalty)} · skill ${Math.round(d.skill * 100)}`, 112, y + 48, 13, '#bbb');
+    });
+    UI.text(c, 'MONEY ON THE STREET (FRONTS)', 680, 140, 16, '#fff', 'left', true);
+    if (!st.fronts.length) UI.text(c, 'Nobody owes you anything.', 680, 170, 15, '#999');
+    st.fronts.forEach((f, i) => UI.text(c, `${f.name} owes ${fmtMoney(f.owed)} · due day ${f.due} · ${DISTRICTS[f.district].short}`, 680, 172 + i * 26, 15, '#e8c060'));
+    UI.text(c, 'LAST NIGHT', 680, 380, 16, '#fff', 'left', true);
+    (st.news.length ? st.news : ['Quiet night.']).slice(0, 8).forEach((n, i) => { c.font = `14px ${FONT}`; c.fillStyle = '#ccc'; wrapText(c, '• ' + n, 680, 408 + i * 36, 560, 17); });
+    if (UI.btn(c, 40, H - 90, 200, 50, 'BACK')) Game.setScene(new CampScene());
+    UI.cursor(c);
+  }
+}
+
+/* ===== js/story2.js ===== */
+'use strict';
+// ============================================================
+//  FIXING GOOD - the expanded story: new chapters, choices, endings
+//  (loads after story.js / scenes.js; extends LEVELS, CHAPTERS, NODES)
+// ============================================================
+Object.assign(LOOKS, {
+  nico: { name: 'Nico', skin: '#c58d63', hair: 'short', hairColor: '#1a1410', hat: 'cap', hatColor: '#2a6ab0', shirt: '#3a3a44', sleeves: 'long', hood: true, pants: '#2a3550', shoes: '#eee', build: 0.9 },
+  lena: { name: 'Lena', skin: '#ecc4a4', hair: 'long', hairColor: '#7a3a1a', shirt: '#3a8a8a', sleeves: 'long', pants: '#2a2a3a', shoes: '#c8c8c8', build: 0.88 },
+  spider: { name: 'Spider', skin: '#d8a27e', hair: 'buzz', hairColor: '#222', hat: 'bandana', hatColor: '#a02020', beard: 'goatee', beardColor: '#222', shirt: '#f0f0f0', sleeves: 'short', tattoo: true, pants: '#2a2a2a', shoes: '#c02020', build: 1.0, chain: true },
+  gideon: { name: 'Gideon', skin: '#e2b08a', hair: 'ring', hairColor: '#bdbdbd', mustache: true, beardColor: '#cfcfcf', shirt: '#d8d0b8', jacket: '#7a6a4a', sleeves: 'long', pants: '#4a4a40', shoes: '#2a1a12', build: 1.1 },
+  mama: { name: 'A mother', skin: '#a8754e', hair: 'long', hairColor: '#2a1a12', shirt: '#e8b8c8', sleeves: 'long', pants: '#5a4a6a', shoes: '#222', build: 1.0 },
+  killer: { name: 'Fenn\'s man', skin: '#e2b08a', hair: 'buzz', hairColor: '#3a2a1a', shirt: '#2a2a2a', jacket: '#2e3a4a', sleeves: 'long', pants: '#2a2a2a', shoes: '#111', build: 1.05 },
+});
+Object.assign(ARCH, {
+  spider: { hp: 560, speed: 240, weapon: 'smg', dist: [160, 360], acc: 0.07, react: 0.4, boss: true, look: 'spider' },
+  fenn: { hp: 650, armor: 120, speed: 170, weapon: 'pistol', dist: [240, 480], acc: 0.04, react: 0.35, boss: true, look: 'fenn' },
+  gideon: { hp: 620, speed: 160, weapon: 'revolver', dist: [260, 520], acc: 0.03, react: 0.3, boss: true, look: 'gideon' },
+});
+const S2 = (who, text, expr) => [who, text, expr];
+const N = text => ['narrator', text];
+
+Object.assign(LEVELS, {
+  // ---------------------------------------------------------------- CORNERS
+  southside: {
+    theme: 'southside', width: 5400, start: 220, walter: true, music: 'tense', enemyLook: 'thug', dark: 0.5,
+    npcs: [{ id: 'nico', x: 520, look: 'nico', face: -1 }],
+    build(L) {
+      L.car(700, '#3a3a44', 'sedan', 1); L.crate(1100, 70, 64, 'container'); L.fire(1300, 30); L.barrel(1500, 'red'); L.plat(1650, GROUND - 130, 240);
+      L.car(2000, '#5a2a2a', 'pickup', -1); L.crate(2400, 64, 56, 'cardboard'); L.fire(2600, 30); L.crate(2800, 70, 64, 'container'); L.plat(3000, GROUND - 140, 260);
+      L.barrel(3350, 'propane'); L.car(3600, '#2a3a5a', 'sedan', 1); L.crate(4000, 64, 60, 'metal'); L.fire(4200, 30); L.barrel(4400, 'red'); L.plat(4600, GROUND - 130, 240); L.crate(5000, 70, 64, 'container');
+      for (const x of [400, 1400, 2500, 3500, 4500]) L.lamp(x, 240, x !== 2500);
+      L.sign(300, 'SOUTHSIDE', '#e05a7a');
+    },
+    steps: [
+      { cine: true, title: 'CORNERS', sub: 'CHAPTER THREE' }, { wait: 1.2 }, { walk: ['player', 440, true] },
+      { say: [S2('walter', 'Rafa is dead, which means his corners are empty. Empty corners get filled.'), S2('jace', 'Southside belongs to Spider now. Spider\'s not Rafa. Spider\'s worse. He pays kids to hold his stash so they do the time.', 'worried'), S2('walter', 'Then we\'ll pay them better.'), S2('nico', 'You\'re the blue guy? I\'m Nico. Spider owes me three weeks. I know where his crew sleeps.', 'smile'), S2('jace', 'How old are you, man?'), S2('nico', 'Nineteen. Old enough to know Spider\'s never paying.'), S2('walter', 'Good. Show us.')] },
+      { do: lv => { const n = lv.named.nico; n.cine = 300; }, cine: false, objective: 'Take Southside from Spider\'s crew', music: 'action', spawn: [{ t: 'gunner', x: 1200 }, { t: 'thug', x: 1000 }, { t: 'smg', x: 1700, y: GROUND - 130 }] },
+      { banter: ['nico', '(from behind a car) Stairwell! He\'s got a guy on the stairwell!'] }, { clear: true }, { cp: true },
+      { reach: 1900, spawn: [{ t: 'shotgunner', x: 2600 }, { t: 'gunner', x: 3050, y: GROUND - 140 }, { t: 'knifer', x: 2300 }, { t: 'thug', from: 'left' }] },
+      { clear: true }, { cp: true }, { banter: ['walter', 'They\'re falling back. Keep pressure on them.'] },
+      { reach: 3300, spawn: [{ t: 'smg', x: 4000 }, { t: 'gunner', x: 4650, y: GROUND - 130 }, { t: 'shotgunner', x: 4200 }, { t: 'knifer', from: 'left' }, { t: 'gunner', x: 4400 }] },
+      { clear: true }, { cp: true },
+      { reach: 4300 }, { cine: true, npc: { id: 'spider', x: 5000, look: 'spider', guns: ['smg'], face: -1 } }, { wait: 0.6 },
+      { say: [S2('spider', 'You think the blue makes you king, cook-boy? Southside eats kings.', 'angry'), S2('jace', 'Then come eat, Spider.', 'angry'), S2('spider', 'Nah. I\'ll wait. Everybody you love on these corners? I know where they sleep too.', 'smile')] },
+      { do: lv => { lv.named.spider.cine = 5380; } }, { wait: 1.2 }, { do: lv => lv.remove('spider') },
+      { npc: { id: 'mama', x: 4100, look: 'mama', face: 1 } }, { do: lv => { const k = lv.addNPC({ id: 'boy', x: 4160, look: 'nico', face: -1 }); k.look = Object.assign({}, LOOKS.nico, { name: 'Lookout', hatColor: '#a02020' }); k.downed = 999; } },
+      { walk: ['player', 4040, true] },
+      { say: [N('(A woman in a bathrobe is kneeling over a boy on the pavement. One of Spider\'s lookouts. Fifteen, maybe.)'), S2('mama', 'That was YOUR blue on his corner! He was selling YOUR blue!', 'angry'), S2('jace', '...I didn\'t—', 'worried'), S2('mama', 'Get away from him. GET AWAY FROM MY SON!', 'angry'), S2('walter', 'Jace. Get in the RV. She\'ll forget our faces. Grief is very bad at details.'), S2('nico', 'Southside\'s yours now, Jace. I\'ll run the corner. I won\'t let you down.')] },
+      { do: lv => { const st = dealState(); st.flags.southside = true; if (!st.dealers.find(d => d.name === 'Nico')) st.dealers.push({ name: 'Nico', district: 'south', bags: 6, purity: Math.max(st.purity, 85), loyalty: 95, skill: 0.75, status: 'active', look: LOOKS.nico }); Game.state.money += 1500; lv.toast('Southside unlocked · Nico works your corner · +$1,500'); } },
+      { wait: 1.4 }, { fade: 'out' }, { end: true },
+    ],
+  },
+  // ---------------------------------------------------------------- LENA
+  traphouse: {
+    theme: 'warehouse', width: 4400, start: 180, walter: false, music: 'tense', enemyLook: 'thug', flashlight: true, dark: 0.7,
+    build(L) {
+      L.crate(500, 64, 56, 'cardboard'); L.table(800, 140); L.crate(1100, 64, 64); L.plat(1300, GROUND - 130, 260); L.barrel(1600, 'red'); L.table(1900, 140);
+      L.crate(2200, 70, 64, 'metal'); L.plat(2500, GROUND - 140, 240); L.crate(2800, 64, 56, 'cardboard'); L.barrel(3100, 'propane'); L.table(3400, 140); L.crate(3700, 64, 64, 'metal'); L.plat(3900, GROUND - 130, 260);
+      for (const x of [300, 1200, 2100, 3000, 3900]) L.light(x, 150, 260, '255,190,110', 0.6);
+      L.sign(240, 'NO VACANCY', '#e05a7a');
+    },
+    steps: [
+      { cine: true, title: 'LENA', sub: 'CHAPTER SIX' }, { wait: 1.2 },
+      { say: [S2('lena', '(phone) Jace? I\'m sorry. I\'m so sorry. Spider\'s guy came by. He had the blue. Your blue.', 'worried'), S2('jace', 'Where are you?', 'worried'), S2('lena', '(phone) Home. I only did a little. A year clean and I only did a little.', 'worried'), S2('jace', 'Stay there. Lock the door. I\'m going to go have a talk with Spider.', 'angry'), S2('walter', '(radio) Jace. Personal business is bad business.'), S2('jace', 'Then stay in the RV, Mr. Black.', 'angry')] },
+      { cine: false, objective: 'Clear out Spider\'s trap house', music: 'action', spawn: [{ t: 'gunner', x: 1000 }, { t: 'thug', x: 900 }, { t: 'smg', x: 1350, y: GROUND - 130 }, { t: 'knifer', x: 1200 }] },
+      { clear: true }, { cp: true }, { reach: 1700, spawn: [{ t: 'shotgunner', x: 2300 }, { t: 'gunner', x: 2550, y: GROUND - 140 }, { t: 'smg', x: 2700 }, { t: 'thug', from: 'left' }] },
+      { clear: true }, { cp: true },
+      { reach: 3000 }, { arena: [2900, 4400], cine: true, spawn: [{ t: 'spider', id: 'spider', x: 4000, name: 'Spider', alert: false }], do: lv => { lv.named.spider.passive = true; lv.named.spider.facing = -1; }, cam: 3650 },
+      { say: [S2('spider', 'She came to ME, Jace. Walked right in. You think she wants you? She wants what you cook.', 'smile'), S2('jace', 'I\'m going to kill you, Spider.', 'angry'), S2('spider', 'Everybody says that. Then they need a re-up.', 'smile')] },
+      { cam: null, cine: false, do: lv => lv.hostile(['spider']), boss: 'spider', music: 'boss', objective: 'Kill Spider' },
+      { spawn: [{ t: 'gunner', from: 'right' }, { t: 'knifer', from: 'left' }] }, { wait: 12 }, { spawn: [{ t: 'smg', from: 'right' }] },
+      { until: lv => !lv.named.spider.alive }, { boss: null, objective: '' }, { clear: true }, { wait: 1.2 },
+      { banter: ['jace', 'That one was for Lena.'] }, { wait: 1.5 }, { fade: 'out' }, { end: true },
+    ],
+  },
+  lenaEnd: {
+    theme: 'southside', width: 2200, start: 300, noHud: true, unarmed: true, music: 'menu', dark: 0.55,
+    npcs: [{ id: 'lena', x: 1000, look: 'lena', face: -1 }],
+    build(L) { L.prop(c => { c.fillStyle = '#3a2e2a'; c.fillRect(780, GROUND - 260, 520, 260); c.fillStyle = '#f0c070'; c.fillRect(840, GROUND - 210, 90, 80); c.fillRect(1150, GROUND - 210, 90, 80); c.strokeStyle = INK; c.lineWidth = 4; c.strokeRect(780, GROUND - 260, 520, 260); c.fillStyle = '#5a3a2a'; c.fillRect(1000, GROUND - 150, 70, 150); }); L.lamp(600, 240); L.table(1180, 110); },
+    steps: [
+      { cine: true, walk: ['player', 920, true] },
+      { say: [S2('lena', 'You came back. You actually came back.', 'smile'), S2('jace', 'I\'m done, Lena. After this batch. We take the money and go somewhere with grass.', 'worried'), S2('lena', 'You always say "after this batch."', 'smile'), S2('jace', 'This time I mean it.'), N('(That night Jace sleeps for the first time in a week. The stash is still in his jacket on the chair.)')] },
+      { fade: 'out' }, { do: lv => { lv.named.lena.downed = 999; lv.named.lena.x = 1180; lv.player.x = 1000; } }, { wait: 1.2 }, { fade: 'in' },
+      { say: [N('(Morning.)'), S2('jace', 'Lena? ...Lena. Hey. LENA!', 'worried'), N('(She is cold. There is a little blue left on the nightstand. Jace\'s blue.)'), N('(He doesn\'t remember the next hour. Only Walter at the door, very calm, holding his hat.)')] },
+      { npc: { id: 'walter', x: 300, look: 'walter', face: 1 } }, { walk: ['walter', 820, true] },
+      { say: [S2('walter', 'Jace. I came by last night looking for you. You were both asleep. I didn\'t want to wake you.'), S2('jace', 'She\'s dead, Mr. Black. She\'s DEAD.', 'worried'), S2('walter', 'I know. I\'m sorry.'), S2('walter', 'We have a cook on Thursday. You\'ll want to be busy.')] },
+      { fade: 'out' }, { end: true },
+    ],
+  },
+  // ---------------------------------------------------------------- NICO
+  stockyard: {
+    theme: 'dusk', width: 5000, start: 300, walter: true, music: 'tense', enemyLook: 'labguard',
+    npcs: [{ id: 'nico', x: 520, look: 'nico', face: 1 }],
+    build(L) {
+      L.crate(900, 70, 64, 'container'); L.crate(906, 58, 56, 'container', GROUND - 64); L.barrel(1200, 'red'); L.car(1450, '#4a4a3a', 'pickup', 1); L.plat(1800, GROUND - 130, 260);
+      L.crate(2200, 64, 64, 'metal'); L.barrel(2400, 'propane'); L.crate(2700, 70, 64, 'container'); L.plat(3000, GROUND - 140, 240); L.car(3400, '#2a2a2a', 'sedan', -1);
+      L.crate(3800, 64, 56, 'sandbag'); L.barrel(4000, 'red'); L.crate(4300, 70, 64, 'container'); L.plat(4500, GROUND - 130, 240);
+      L.prop(c => { c.font = 'bold 40px sans-serif'; c.fillStyle = 'rgba(200,30,30,.8)'; c.fillText('NO', 470, GROUND - 120); });
+      L.sign(200, 'ROUTE 9 STOCKYARD', '#e8c060');
+    },
+    steps: [
+      { cine: true, title: 'NICO', sub: 'CHAPTER NINE', do: lv => { lv.named.nico.downed = 999; } }, { wait: 1.2 }, { walk: ['player', 470, true] },
+      { say: [N('(Nico is lying where his corner used to be. Somebody painted one word on the wall above him: NO.)'), S2('jace', 'He was nineteen. He was NINETEEN, Mr. Black.', 'worried'), S2('walter', 'Fenn asked you for Southside. You said no. This is how a man like Fenn says it back.'), S2('jace', 'Where are they.', 'angry'), S2('walter', 'The stockyard off Route 9. Fenn\'s people. I asked around.'), S2('walter', 'Jace. Whatever you do there, do it quietly. We still need Fenn\'s lab.')] },
+      { do: lv => { const st = dealState(); const d = st.dealers.find(x => x.name === 'Nico'); if (d) { d.status = 'dead'; d.bags = 0; } } },
+      { cine: false, objective: 'Find Nico\'s killers', music: 'action', spawn: [{ t: 'gunner', x: 1300 }, { t: 'smg', x: 1850, y: GROUND - 130 }, { t: 'rifleman', x: 1600 }, { t: 'knifer', x: 1100 }] },
+      { clear: true }, { cp: true }, { reach: 2000, spawn: [{ t: 'shotgunner', x: 2700 }, { t: 'rifleman', x: 3050, y: GROUND - 140 }, { t: 'smg', x: 2900 }, { t: 'heavy', x: 3300 }] },
+      { clear: true }, { cp: true }, { reach: 3400, spawn: [{ t: 'rifleman', x: 4550, y: GROUND - 130 }, { t: 'gunner', x: 4200 }, { t: 'shotgunner', x: 4300 }, { t: 'smg', from: 'left' }] },
+      { clear: true }, { cp: true },
+      { reach: 4100 }, { cine: true, npc: { id: 'killer', x: 4400, look: 'killer', face: -1 }, do: lv => { lv.named.killer.downed = 999; } }, { walk: ['player', 4300, true] },
+      { say: [S2('killer', 'Wait! WAIT! It was an order, man! Fenn said make it loud! Make it a message!', 'worried'), S2('jace', 'He was a kid.', 'angry'), S2('killer', 'I\'ve got a kid too! Please! I\'ll leave the state. I\'ll leave the country!', 'worried'), S2('walter', 'Your call, Jace. But decide quickly. Fenn will notice his people are missing.')] },
+      { choice: { prompt: 'The man who killed Nico is on his knees in the dirt. Walter is watching you very closely.', options: [
+        { label: 'Execute him', sub: 'Make it loud. Make it a message back.', flag: ['nico', 'executed'], do: lv => { const k = lv.named.killer, p = lv.player; setTimeout(() => { Audio.play('revolver'); lv.shake(6); k.downed = 0; k.hurt(999, { kind: 'bullet', x: k.x, y: k.y - 30, dx: 1, dy: 0.2, head: true, power: 200, knock: 300 }, lv); }, 400); } },
+        { label: 'Let him go', sub: 'Leave New Mexico tonight. Never come back.', flag: ['nico', 'spared'], do: lv => { const k = lv.named.killer; k.downed = 0; k.cine = 5200; } },
+      ] } },
+      { wait: 1.4 },
+      { until: lv => true, do: lv => { lv.vars.after = Game.state.flags.nico; } },
+      { if: () => Game.state.flags.nico === 'executed', say: [S2('walter', '...Well. That was loud.', 'neutral'), S2('jace', 'Don\'t. Don\'t say anything.', 'angry'), S2('walter', 'I was only going to say: now Fenn knows exactly who you are.')] },
+      { if: () => Game.state.flags.nico === 'spared', say: [S2('walter', 'Mercy. How expensive of you.', 'neutral'), S2('jace', 'He\'s got a kid.', 'worried'), S2('walter', 'Everyone has a kid, Jace. Fenn will hear about this by dinner, and he\'ll know you\'re soft.')] },
+      { do: lv => lv.remove('killer') }, { fade: 'out' }, { end: true },
+    ],
+  },
+  // ---------------------------------------------------------------- CHECKMATE
+  hencenter: {
+    theme: 'lab', width: 5600, start: 200, walter: true, music: 'tense', enemyLook: 'labguard', dark: 0.32,
+    build(L) {
+      L.plat(600, GROUND - 160, 340); L.crate(1100, 64, 64, 'metal'); L.barrel(1300, 'red'); L.crate(1600, 120, 52, 'counter'); L.plat(1900, GROUND - 150, 300);
+      L.crate(2400, 64, 64, 'metal'); L.barrel(2600, 'blue'); L.crate(2900, 120, 52, 'counter'); L.plat(3200, GROUND - 160, 320); L.barrel(3500, 'red');
+      L.crate(3900, 64, 64, 'metal'); L.plat(4300, GROUND - 150, 300); L.barrel(4600, 'propane'); L.crate(4900, 120, 52, 'counter'); L.barrel(5200, 'red');
+      for (const x of [400, 1500, 2600, 3700, 4800]) L.light(x, 80, 380, '220,240,255', 0.7);
+      L.sign(260, 'GOLDEN HEN DISTRIBUTION', '#ffd040');
+    },
+    steps: [
+      { cine: true, title: 'CHECKMATE', sub: 'CHAPTER ELEVEN' }, { wait: 1.2 },
+      { say: [S2('walter', 'Fenn killed Nico to teach you a lesson. The moment his lab runs without us, he\'ll teach us one too.'), S2('jace', 'So we kill him first.', 'angry'), S2('walter', 'We fire him. Permanently.'), S2('walter', 'He\'s here tonight. Counting his chickens.')] },
+      { cine: false, objective: 'Fight through Fenn\'s distribution center', music: 'action', spawn: [{ t: 'rifleman', x: 700, y: GROUND - 160 }, { t: 'smg', x: 1200 }, { t: 'gunner', x: 1500 }, { t: 'shotgunner', x: 1700 }] },
+      { clear: true }, { cp: true }, { reach: 1800, spawn: [{ t: 'heavy', x: 2500 }, { t: 'rifleman', x: 2000, y: GROUND - 150 }, { t: 'smg', x: 2800 }, { t: 'gunner', from: 'left' }] },
+      { clear: true }, { cp: true }, { reach: 3000, spawn: [{ t: 'rifleman', x: 3300, y: GROUND - 160 }, { t: 'shotgunner', x: 3700 }, { t: 'smg', x: 3800 }, { t: 'heavy', x: 4000 }] },
+      { clear: true }, { cp: true },
+      { reach: 4100 }, { arena: [3900, 5600], cine: true, spawn: [{ t: 'gideon', id: 'gideon', x: 5000, name: 'Gideon', alert: false }, { t: 'fenn', id: 'fenn', x: 5250, name: 'Augusto Fenn', alert: false }], do: lv => { for (const id of ['gideon', 'fenn']) { lv.named[id].passive = true; lv.named[id].facing = -1; } }, cam: 4700 },
+      { say: [S2('gideon', 'Thirty years a cop, son. I\'ve buried better than you.', 'angry'), S2('fenn', 'You were a delivery boy with a chemistry teacher. I made you into something. This is ingratitude.'), S2('jace', 'You killed Nico.', 'angry'), S2('fenn', 'I killed a corner. You took it personally. That was always your problem.')] },
+      { cam: null, cine: false, do: lv => lv.hostile(['gideon', 'fenn']), boss: 'gideon', music: 'boss', objective: 'Kill Fenn and Gideon' },
+      { until: lv => !lv.named.gideon.alive || !lv.named.fenn.alive }, { do: lv => { lv.bossId = lv.named.fenn.alive ? 'fenn' : 'gideon'; } },
+      { spawn: [{ t: 'smg', from: 'left' }, { t: 'rifleman', from: 'right' }] },
+      { until: lv => !lv.named.gideon.alive && !lv.named.fenn.alive }, { boss: null, objective: '' }, { clear: true }, { wait: 1.5 },
+      { cine: true, walk: ['walter', 4600, true, false] }, { walk: ['player', 4700, true] },
+      { say: [S2('jace', 'It\'s done. Fenn\'s done. Nico\'s... even.', 'worried'), S2('walter', 'There\'s something you should hear from me, before you hear it from someone who doesn\'t love you.'), S2('walter', 'The night Lena died. I didn\'t knock. The door was open.'), S2('walter', 'She was choking, Jace. On her back. I could have turned her over. It would have taken one second.'), S2('jace', '...What.', 'worried'), S2('walter', 'You were going to leave. She was going to take you somewhere with grass. I needed my partner.'), S2('walter', 'So I watched. And then I went home. And I am telling you now so you understand exactly what I am willing to do.')] },
+      { choice: { prompt: 'Walter just told you he watched Lena die.', options: [
+        { label: 'Hit him', sub: 'Again. And again.', flag: ['truth', 'hit'], do: lv => { const p = lv.player, w = lv.walter; p.facing = w.x > p.x ? 1 : -1; let n = 0; const iv = setInterval(() => { if (n++ > 4) { clearInterval(iv); w.downed = 3; return; } p.melee = null; p.combo = n % 3; p.startMelee(lv); Audio.play('punch'); lv.shake(4); w.stagger = 0.3; lv.fx.blood(w.x, w.y - 80, p.facing, -0.3, 8, 0.6); }, 330); } },
+        { label: 'Walk away', sub: 'Don\'t give him anything. Not even this.', flag: ['truth', 'walked'], do: lv => { lv.player.cine = 4300; } },
+      ] } },
+      { wait: 2.2 },
+      { say: [S2('walter', '...We still have work to do, Jace. Brewer is close. Closer than you know.')] },
+      { do: lv => { Game.state.money += 10000; lv.toast('+$10,000 from Fenn\'s safe'); } }, { fade: 'out' }, { end: true },
+    ],
+  },
+  // ---------------------------------------------------------------- BREWER
+  canyon: {
+    theme: 'night', width: 4800, start: 260, walter: true, music: 'tense', enemyLook: 'biker', flashlight: true, dark: 0.6,
+    npcs: [{ id: 'brewer', kind: 'rifleman', team: 'npc', x: 700, look: 'brewer', guns: ['rifle'], face: -1 }],
+    build(L) {
+      L.rv(-80, { dirty: true }); L.car(560, '#2a2a2a', 'sedan', -1); for (const x of [1100, 1700, 2300, 2900, 3500, 4100]) { L.crate(x, 90, 70, 'sandbag'); }
+      L.barrel(1400, 'red'); L.barrel(2600, 'red'); L.barrel(3800, 'propane'); L.plat(2000, GROUND - 130, 240); L.plat(3200, GROUND - 130, 240); L.cactus(1250, 110); L.cactus(3000, 90);
+      L.light(620, GROUND - 60, 360, '255,240,200', 0.9);
+    },
+    steps: [
+      { cine: true, title: 'BREWER', sub: 'CHAPTER TWELVE' }, { wait: 1.2 }, { walk: ['player', 560, true] },
+      { say: [S2('brewer', 'Walt. WALT. Your RV. Your chemistry set. Your partner here. I\'ve got a file on you this thick.', 'angry'), S2('walter', 'Hal. Please. Not here.', 'worried'), S2('brewer', 'No, here! You\'re under arrest, and so is your little—', 'angry'), N('(Engines. Dozens of them, coming up the canyon.)'), S2('jace', 'Bikes. A LOT of bikes. Mr. Black... did you call someone?', 'worried'), S2('walter', 'I called Dutch. Last week. I told him where Hal would be tonight.'), S2('brewer', 'You set me up? You set ME up?! Behind the sandbags, both of you! We sort this out AFTER!', 'angry')] },
+      { cine: false, objective: 'Survive the Dust Dogs', music: 'action', do: lv => { const b = lv.named.brewer; b.team = 'ally'; b.passive = false; b.invuln = true; b.maxHp = b.hp = 500; b.ai.state = 'alert'; }, spawn: [{ t: 'gunner', from: 'right' }, { t: 'smg', from: 'right' }, { t: 'thug', from: 'right' }, { t: 'gunner', x: 2050, y: GROUND - 130 }] },
+      { banter: ['brewer', 'DEA! Drop your weapons! ...Yeah, didn\'t think so.'] }, { clear: true }, { cp: true },
+      { reach: 1500, spawn: [{ t: 'rifleman', x: 2400 }, { t: 'shotgunner', x: 2200 }, { t: 'smg', x: 3250, y: GROUND - 130 }, { t: 'knifer', from: 'left' }] },
+      { clear: true }, { cp: true }, { banter: ['walter', 'There\'s too many of them, Hal!'] },
+      { reach: 2800, spawn: [{ t: 'heavy', x: 3700 }, { t: 'rifleman', x: 3900 }, { t: 'smg', x: 3500 }, { t: 'gunner', from: 'left' }, { t: 'shotgunner', x: 4100 }] },
+      { clear: true }, { wait: 1 },
+      { cine: true, do: lv => { const b = lv.named.brewer; b.downed = 999; b.x = lv.player.x + 160; }, spawn: [{ t: 'dutch', id: 'dutch', x: 3500, alert: false, passive: true }, { t: 'rifleman', id: 'dg1', x: 3600, alert: false, passive: true }, { t: 'rifleman', id: 'dg2', x: 3700, alert: false, passive: true }] },
+      { walk: ['dutch', 3150, true] },
+      { say: [S2('walter', 'Dutch! The deal\'s off! Leave him! I\'ll give you everything! The money, the formula, all of it, just leave Hal alone!', 'worried'), S2('dutch', 'Professor. You invited me. Rude to leave a party early.', 'smile'), S2('brewer', 'Walt... tell my wife... tell her it was quick. Lie to her. You\'re good at that.', 'worried'), S2('dutch', 'Hold still, lawman.')] },
+      { do: lv => { const b = lv.named.brewer, d = lv.named.dutch; d.facing = b.x > d.x ? 1 : -1; Audio.play('revolver'); lv.shake(6); b.downed = 0; b.invuln = false; b.hurt(9999, { kind: 'bullet', x: b.x, y: b.y - 30, dx: d.facing, dy: 0.2, head: true, power: 300, knock: 300 }, lv); } }, { wait: 1.6 },
+      { say: [S2('walter', 'NO. No no no no. Hal. HAL!', 'worried'), S2('dutch', 'Take the barrels. Take the Professor. He\'s gonna cook for us now.', 'smile'), S2('dutch', 'Leave the kid for the coyotes.')] },
+      { do: lv => { lv.remove('walter'); lv.player.hurt(Math.max(0, lv.player.hp - 5), { kind: 'melee', x: lv.player.x, y: lv.player.y - 60, dx: -1, dy: 0 }, lv); } },
+      { fade: 'out' }, { say: [N('(Jace wakes up alone in the canyon at dawn. The RV is gone. The money is gone. So is Walter.)'), N('(Hal Brewer is still there. Somebody has to bury him. Jace does.)')] }, { end: true },
+    ],
+  },
+  // ---------------------------------------------------------------- ALONE
+  alone: {
+    theme: 'town', width: 2200, start: 300, noHud: true, unarmed: true, music: 'tense',
+    npcs: [{ id: 'dusty', x: 1000, look: 'dusty', face: -1 }, { id: 'morty', x: 1140, look: 'morty', face: -1 }],
+    build(L) { L.car(400, '#c8c0a0', 'sedan', 1); L.sign(1400, "DUSTY'S PAWN & GUNS", '#ffd060'); L.table(1200, 130); },
+    steps: [
+      { cine: true, title: 'ALONE', sub: 'CHAPTER THIRTEEN' }, { walk: ['player', 880, true] },
+      { say: [S2('dusty', 'Twelve grand buys you three bad decisions with guns and an RV that still starts. Mostly.'), S2('morty', 'Legally, I\'m advising you not to do this. Personally, I\'ve already called my travel agent.'), S2('jace', 'Dutch has Mr. Black. And my money.', 'angry'), S2('dusty', 'After what that man did to your girl, you\'re going back for him?'), S2('jace', 'I\'m going back for the money.', 'angry'), S2('jace', 'And I want him to see me do it.', 'angry'), S2('morty', 'Wonderful. I love a client with closure issues. Dutch\'s compound is out past Route 9. You didn\'t hear it from me. You didn\'t hear anything from me, ever.')] },
+      { fade: 'out' }, { end: true },
+    ],
+  },
+});
+
+// ---------- the finale: two endings ----------
+{
+  const cs = LEVELS.compound.steps, k = cs.findIndex(s => s.say && s.say[0][1].startsWith('We did it'));
+  if (k >= 0) cs.splice(k, cs.length - k,
+    { say: [S2('jace', 'It\'s over. Dutch is done. Mr. Black? ...Mr. Black.', 'worried'), S2('walterHat', 'Stray round. It\'s alright, Jace. It was always going to end like this.', 'worried'), S2('walterHat', 'About Lena. I\'d do it again. I need you to know I\'m not sorry. Sorry would mean it was a mistake.'), S2('walterHat', 'The money\'s in the barrels. Take it. Or don\'t. I won\'t be here to care.')] },
+    { choice: { prompt: 'Walter is bleeding out in the dirt. Sirens, far off, getting closer. The money is in the truck.', options: [
+      { label: 'Stay with him', sub: 'Nobody should die alone. Not even him.', flag: ['ending', 'stay'] },
+      { label: 'Take the money and leave him', sub: 'He let Lena die alone.', flag: ['ending', 'leave'], do: lv => { lv.player.cine = 6000; } },
+    ] } },
+    { wait: 1.2 },
+    { until: () => true, do: lv => { lv.vars.end = Game.state.flags.ending; } },
+    { if: () => Game.state.flags.ending === 'stay', say: [S2('walterHat', '...You stayed. After everything.', 'neutral'), S2('jace', 'Yeah. Somebody should.', 'worried'), S2('walterHat', 'You\'re a better man than me, Jace. That was never... very hard.'), N('(Walter Black stops breathing at 6:14 in the morning. Jace doesn\'t move until the sirens arrive.)')] },
+    { if: () => Game.state.flags.ending === 'leave', say: [S2('walterHat', 'Jace? ...Jace!', 'worried'), S2('walterHat', '...Good. Good. That\'s what I would have done.'), N('(Jace doesn\'t look back. In the mirror, the compound gets smaller until it isn\'t there.)')] },
+    { fade: 'out' }, { end: true },
+  );
+}
+LEVELS.highway2.driver = 'dusty';
+{ const s0 = LEVELS.highway2.steps.find(s => s.say); if (s0) s0.say = [S2('dusty', '(from the cab) She still runs. Barely. Dutch\'s boys are hauling your money down Route 9 to the compound.'), S2('jace', 'Then we take it back.', 'angry'), S2('dusty', 'Get on the roof, kid. I\'ll drive. I\'m too old to shoot and too mean to die.')]; }
+
+// ---------- chapter list ----------
+CHAPTERS.length = 0;
+CHAPTERS.push(
+  { title: 'Cold Start', node: 'rv', seq: [{ level: 'intro' }, { cook: 'tutorial' }, { level: 'introFight' }], after: 'You need product and a buyer. Rafa will see you when you have at least 8 bags. Sell what you don\'t need downtown: negotiate, read people, don\'t sell to cops.' },
+  { title: 'Loco', node: 'junk', requires: s => s.bags >= 8 ? null : 'Rafa wants at least 8 bags. Cook more in the RV.', seq: [{ level: 'junkyard', onStart: s => { s.bags = Math.max(0, s.bags - 8); } }], after: 'Rafa is dead and his corners are empty. Southside is up for grabs, if you can take it from Spider.' },
+  { title: 'Corners', node: 'block', seq: [{ level: 'southside' }], after: 'Southside is yours, and Nico runs the corner. Hire dealers, keep them stocked, and watch the morning reports. You need precursor: Vamonos Chemical has a warehouse full.' },
+  { title: 'Barrels', node: 'chem', seq: [{ level: 'warehouse' }], after: 'Ten barrels of precursor. Time to lie low on the open road...' },
+  { title: 'Highway to Nowhere', node: 'road', seq: [{ level: 'highway1' }], after: 'The Dust Dogs know your RV now. University Row is open for business. And Lena called. She sounded wrong.' },
+  { title: 'Lena', node: 'trap', seq: [{ level: 'traphouse' }, { level: 'lenaEnd' }], after: 'Lena is gone. Walter says work helps. The Crossroads Motel is out on Route 9; Rafa\'s cousins are looking for you.' },
+  { title: 'The Twins', node: 'motel', requires: s => s.stats.bagsSold >= 25 ? null : 'Walter: "We need money for the move. Sell at least 25 bags total first." (' + s.stats.bagsSold + '/25)', seq: [{ level: 'motel' }], after: 'Walter wants a meeting with the man who owns the Golden Hen. The truck stop on Route 9 is open for bulk deals.' },
+  { title: 'Golden Hen', node: 'hen', seq: [{ level: 'goldenhen' }, { level: 'superlab' }], after: 'Fenn wants Southside. You told him no. Go check on Nico.' },
+  { title: 'Nico', node: 'yard', seq: [{ level: 'stockyard' }], after: 'Don Esteban sent the hit squad at the superlab. Fenn wants an answer delivered to his ranch. You go, because you still need Fenn. For now.' },
+  { title: 'Rancho Muerte', node: 'ranch', seq: [{ level: 'ranch' }], after: 'The cartel is finished. Now Fenn is the only thing between you and everything. Walter has a plan. The Silver Spur Strip is open for high-roller deals.' },
+  { title: 'Checkmate', node: 'hq', requires: s => s.rep >= 35 ? null : 'Walter: "Nobody will back us against Fenn until the street respects you." Reach 35 rep (now ' + Math.round(s.rep || 0) + '). Deal well, finish turf wars.', seq: [{ level: 'hencenter' }], after: 'Fenn is dead. You know what Walter did. And Agent Brewer has found the RV camp in the canyon.' },
+  { title: 'Brewer', node: 'canyon', seq: [{ level: 'canyon' }], after: 'Brewer is dead. Walter is gone. So is the money. You have your corners, your dealers and nothing else.' },
+  { title: 'Alone', node: 'alone', requires: s => s.money >= 12000 ? null : 'You need $12,000 for guns and a crew (you have ' + fmtMoney(s.money) + '). Deal. Cook. Collect.', seq: [{ level: 'alone', onStart: s => { s.money -= 12000; } }], after: 'Dusty has the RV running. Dutch\'s compound is out past Route 9. This is the last ride.' },
+  { title: 'Last Ride', node: 'compound', seq: [{ level: 'highway2', onStart: s => { s.flags.lastRide = true; } }, { level: 'compound' }, { ending: true }], after: '' },
+);
+// new story locations on the map
+Object.assign(NODES, {
+  block: { x: 690, y: 610, name: 'Southside Blocks', sub: 'Spider\'s territory', icon: 'story' },
+  trap: { x: 610, y: 540, name: 'Spider\'s Trap House', sub: 'Lena is in trouble', icon: 'story' },
+  yard: { x: 1150, y: 470, name: 'Route 9 Stockyard', sub: 'Fenn\'s people', icon: 'story' },
+  hq: { x: 860, y: 130, name: 'Golden Hen Distribution', sub: 'Fenn\'s headquarters', icon: 'story' },
+  canyon: { x: 330, y: 330, name: 'Dead Horse Canyon', sub: 'The RV camp', icon: 'story' },
+  alone: { x: 840, y: 480, name: 'Dusty\'s Back Room', sub: 'Buy a crew', icon: 'story' },
+});
+ROADS.push(['south', 'block'], ['hardware', 'trap'], ['motel', 'yard'], ['hen', 'hq'], ['rv', 'canyon'], ['dusty', 'alone']);
+DISTRICTS.campus.unlock = s => s.chapter >= 5;
+DISTRICTS.truck.unlock = s => s.chapter >= 7;
+DISTRICTS.casino.unlock = s => s.chapter >= 10;
+
+// ---------- epilogue text for the ending ----------
+function epilogueLines() {
+  const f = Game.state.flags, st = Game.state, L = [];
+  if (f.ending === 'leave') L.push('Jace drove until the gas ran out, somewhere past the state line, with four barrels of money and the radio off.', 'Walter Black died alone in the dirt outside Dutch\'s compound. The DEA found him the next morning, still wearing the hat.');
+  else L.push('Jace sat in the dirt with Walter until the sirens came. Walter didn\'t say anything else. Jace didn\'t ask him to.', 'When the DEA arrived, Jace was holding a dead man\'s hand and four barrels of money he never touched again.');
+  if (f.nico === 'executed') L.push('Jace still sees the stockyard when he closes his eyes. Nico\'s killer, on his knees, and the sound it made.');
+  else if (f.nico === 'spared') L.push('The man who killed Nico made it to Arizona. Fenn\'s people found him there a week later. Mercy bought him seven days.');
+  if (f.truth === 'hit') L.push('Jace broke two knuckles on Walter Black\'s face the night he learned the truth about Lena. They never healed right.');
+  else if (f.truth === 'walked') L.push('Jace never told anyone what Walter said about Lena. Some things you carry so nobody else has to.');
+  const crew = (st.dealers || []).filter(d => d.status === 'active').length;
+  L.push(crew ? `${crew} of Jace's dealers kept working the corners. Somebody always does.` : 'The corners filled back up within a month. Somebody always does.');
+  L.push(`Street earnings: ${fmtMoney(st.stats.earned)}. Bags sold: ${st.stats.bagsSold}. People killed: ${st.stats.kills}.`);
+  return L;
+}
+
+// renumber the original chapters' title cards to match the longer story
+for (const [k, sub] of [['warehouse', 'CHAPTER FOUR'], ['highway1', 'CHAPTER FIVE'], ['motel', 'CHAPTER SEVEN'], ['goldenhen', 'CHAPTER EIGHT'], ['ranch', 'CHAPTER TEN'], ['highway2', 'CHAPTER FOURTEEN']]) { const st = LEVELS[k].steps.find(s => s.title); if (st) st.sub = sub; }
 
 /* ===== js/jobs.js ===== */
 'use strict';
@@ -3754,7 +4395,7 @@ function makeJobLevel(job) {
     steps.push({ reach: width - 900 }, { spawn: [{ t: kind, id: 'target', x: width - 300, name: job.target, hp: 300 + ch * 60 + job.diff * 60, boss: true }, { t: pick(), x: width - 400 }, { t: pick(), from: 'left' }], boss: 'target', objective: 'Take down ' + job.target, banter: [null, job.target + ': "Dusty sent YOU?"'] });
     steps.push({ until: lv => !lv.named.target.alive }, { boss: null }, { clear: true });
   }
-  steps.push({ objective: '', do: lv => { Game.state.money += job.reward; const jj = (Game.state.jobs || []).find(x => x.seed === job.seed); if (jj) jj.done = true; lv.toast('JOB DONE  +' + fmtMoney(job.reward)); } }, { wait: 1.8 }, { fade: 'out' }, { end: true });
+  steps.push({ objective: '', do: lv => { Game.state.money += job.reward; if (job.rep) Game.state.rep = Math.min(100, (Game.state.rep || 0) + job.rep); const jj = (Game.state.jobs || []).find(x => x.seed === job.seed); if (jj) jj.done = true; lv.toast('JOB DONE  +' + fmtMoney(job.reward)); } }, { wait: 1.8 }, { fade: 'out' }, { end: true });
   return {
     theme: job.place.theme, width, start: 180, walter: job.walter, music: 'action', enemyLook: job.place.look, dark: night ? 0.6 : undefined,
     build(L) {
@@ -3775,7 +4416,26 @@ function makeJobLevel(job) {
   };
 }
 class JobScene {
-  constructor() { const st = Game.state; if (!st.jobs || st.jobsDay !== st.day) { st.jobs = makeJobs(); st.jobsDay = st.day; } this.jobs = st.jobs; }
+  drawCompact(c, j, x, y) {
+    UI.panel(c, x, y, 860, 98, j.done ? 0.5 : 0.9);
+    UI.text(c, j.title, x + 20, y + 32, 19, j.done ? '#777' : j.street ? '#ffb070' : '#fff', 'left', true);
+    UI.text(c, '★'.repeat(j.diff) + '☆'.repeat(3 - j.diff), x + 600, y + 32, 16, '#ffd060', 'right');
+    c.font = `13px ${FONT}`; c.fillStyle = j.done ? '#666' : '#bbb'; wrapText(c, j.desc, x + 20, y + 56, 600, 17);
+    UI.text(c, fmtMoney(j.reward), x + 836, y + 34, 22, j.done ? '#557' : '#8fe07a', 'right', true);
+    if (j.done) UI.text(c, 'COMPLETED', x + 836, y + 80, 15, '#9fe88a', 'right', true);
+    else if (UI.btn(c, x + 680, y + 48, 160, 38, 'TAKE THE JOB', { size: 14 })) Game.setScene(new LevelScene(null, () => Game.setScene(new JobScene()), { def: makeJobLevel(j) }));
+  }
+  constructor() {
+    const st = dealState(); if (!st.jobs || st.jobsDay !== st.day) { st.jobs = makeJobs(); st.jobsDay = st.day; }
+    // problems from the street come first
+    for (const e of st.extraJobs.splice(0)) {
+      const place = { name: DISTRICTS[e.district] ? DISTRICTS[e.district].name : 'the street', theme: e.district === 'south' ? 'southside' : e.district === 'truck' ? 'motel' : 'dusk', look: e.district === 'truck' ? 'biker' : 'thug' };
+      if (e.kind === 'collect') st.jobs.unshift({ seed: e.seed, place, diff: 1, bounty: true, target: e.name, walter: false, title: 'Collect from ' + e.name, desc: `${e.name} took product on credit and never paid. They're hiding behind friends on ${place.name}. Collect the ${fmtMoney(e.owed)}.`, reward: e.owed, done: false, street: true });
+      else st.jobs.unshift({ seed: e.seed, place, diff: 2, bounty: false, target: '', walter: true, title: 'Turf war: ' + (e.dealer || 'your corner'), desc: `A rival crew jumped ${e.dealer || 'your dealer'} on ${place.name}. If you don't answer, every corner you own is open season. Rep +8.`, reward: 600 + st.chapter * 250, rep: 8, done: false, street: true });
+    }
+    if (st.jobs.length > 6) st.jobs.length = 6;
+    this.jobs = st.jobs;
+  }
   enter() { Audio.music('hub'); }
   update() { if (Input.hit('Escape')) Game.setScene(new HubScene()); }
   draw(c) {
@@ -3788,7 +4448,8 @@ class JobScene {
     UI.panel(c, 40, 316, 300, 120, 0.8); c.font = `italic 16px ${FONT}`; c.fillStyle = '#e8dcc0'; wrapText(c, '"Jobs change every day. Pay\'s in cash. Don\'t die, it\'s bad for business."', 56, 346, 270, 22);
     UI.text(c, 'CASH  ' + fmtMoney(Game.state.money), 40, 476, 22, '#8fe07a', 'left', true);
     this.jobs.forEach((j, i) => {
-      const x = 380, y = 40 + i * 205;
+      const comp = this.jobs.length > 3, x = 380, y = 40 + i * (comp ? 108 : 205);
+      if (comp) return this.drawCompact(c, j, x, y);
       UI.panel(c, x, y, 860, 190, j.done ? 0.5 : 0.9);
       UI.text(c, j.title, x + 24, y + 42, 24, j.done ? '#777' : '#fff', 'left', true);
       UI.text(c, '★'.repeat(j.diff) + '☆'.repeat(3 - j.diff), x + 836, y + 42, 22, '#ffd060', 'right');
@@ -3799,6 +4460,7 @@ class JobScene {
       else if (UI.btn(c, x + 650, y + 124, 186, 46, 'TAKE THE JOB')) Game.setScene(new LevelScene(null, () => Game.setScene(new JobScene()), { def: makeJobLevel(j) }));
     });
     if (UI.btn(c, 40, H - 90, 200, 50, 'LEAVE')) Game.setScene(new HubScene());
+    UI.text(c, 'Street problems (unpaid fronts, jumped dealers) show up here first.', 40, H - 120, 13, '#e8a070');
     UI.text(c, 'New jobs every day (cook or sleep in the RV).', 40, H - 104, 13, '#888');
     UI.cursor(c);
   }
@@ -3839,7 +4501,7 @@ function devStart() {
   if (DEV.has('god')) Game.cheatGod = true;
   const lv = DEV.get('level'), sc = DEV.get('scene');
   if (lv) return Game.setScene(new LevelScene(lv, () => Game.setScene(new HubScene())));
-  const map = { hub: () => new HubScene(), cook: () => new CookScene({ done: () => Game.setScene(new HubScene()) }), dusty: () => new ShopScene('dusty'), hardware: () => new ShopScene('hardware'), morty: () => new ShopScene('morty'), trade: () => new TradeScene(), camp: () => new CampScene(), jobs: () => new JobScene(), ending: () => new EndingScene(), menu: () => new MenuScene() };
+  const map = { hub: () => new HubScene(), cook: () => new CookScene({ done: () => Game.setScene(new HubScene()) }), dusty: () => new ShopScene('dusty'), hardware: () => new ShopScene('hardware'), morty: () => new ShopScene('morty'), trade: () => new DistrictScene(DEV.get('d') || 'streets'), crew: () => new CrewScene(), camp: () => new CampScene(), jobs: () => new JobScene(), ending: () => new EndingScene(), menu: () => new MenuScene() };
   if (sc && map[sc]) Game.setScene(map[sc]());
 }
 let last = performance.now();
