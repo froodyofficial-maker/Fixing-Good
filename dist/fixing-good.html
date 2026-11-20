@@ -4954,7 +4954,7 @@ class RunScene {
       UI.text(c, '★'.repeat(ct.diff) + '☆'.repeat(3 - ct.diff), x + w - 20, y + 34, 15, '#ffd060', 'right');
       c.font = `bold 20px ${FONT}`; c.fillStyle = '#fff'; wrapText(c, ct.title, x + 24, y + 66, w - 44, 24);
       c.font = `14px ${FONT}`; c.fillStyle = '#bbb'; wrapText(c, ct.desc, x + 24, y + 122, w - 44, 19);
-      ct.mods.forEach((m, j) => { UI.text(c, m.name, x + 24, y + 182 + j * 38, 14, '#ff9a60', 'left', true); UI.text(c, m.desc, x + 24, y + 199 + j * 38, 12, '#c8b8a8'); });
+      ct.mods.forEach((m, j) => { UI.text(c, m.name, x + 24, y + 168 + j * 34, 14, '#ff9a60', 'left', true); UI.text(c, m.desc, x + 24, y + 184 + j * 34, 12, '#c8b8a8'); });
       UI.text(c, fmtMoney(Math.round(ct.pay * (1 + 0.5 * perk('greed')))), x + 24, y + h - 72, 24, '#8fe07a', 'left', true);
       if (UI.btn(c, x + 24, y + h - 56, w - 48, 42, 'TAKE THE CONTRACT', { size: 15 })) Run.play(ct);
     });
