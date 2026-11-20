@@ -33,7 +33,7 @@ Progress saves automatically in the browser (localStorage).
 | 3 | Corners | Take Southside from Spider's crew with Nico, a kid from the projects, and meet the mother of a boy who sold your blue |
 | 4 | Barrels | A night-time warehouse heist by flashlight, with takedowns and alarms |
 | 5 | Highway to Nowhere | Ride the roof of the RV and fight off biker gangs at highway speed |
-| 6 | Lena | Storm Spider's trap house for Lena's sake, then the worst morning of Jace's life |
+| 6 | Lena | Storm Spider's trap house for Lena, Jace's best friend since third grade, then the worst morning of his life |
 | 7 | The Twins | A motel ambush and two silent hitmen |
 | 8 | Golden Hen | A meeting with a chicken magnate, then defend Walter in the superlab |
 | 9 | Nico | Fenn sends a message. Hunt the killers; decide what happens to the one on his knees |

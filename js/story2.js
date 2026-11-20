@@ -61,7 +61,7 @@ Object.assign(LEVELS, {
     },
     steps: [
       { cine: true, title: 'LENA', sub: 'CHAPTER SIX' }, { wait: 1.2 },
-      { say: [S2('lena', '(phone) Jace? I\'m sorry. I\'m so sorry. Spider\'s guy came by. He had the blue. Your blue.', 'worried'), S2('jace', 'Where are you?', 'worried'), S2('lena', '(phone) Home. I only did a little. A year clean and I only did a little.', 'worried'), S2('jace', 'Stay there. Lock the door. I\'m going to go have a talk with Spider.', 'angry'), S2('walter', '(radio) Jace. Personal business is bad business.'), S2('jace', 'Then stay in the RV, Mr. Black.', 'angry')] },
+      { say: [S2('lena', '(phone) Jace? I\'m sorry. I\'m so sorry. Spider\'s guy came by. He had the blue. Your blue.', 'worried'), S2('jace', 'Where are you?', 'worried'), S2('lena', '(phone) Home. I only did a little. A year clean and I only did a little.', 'worried'), S2('jace', 'Stay there. Lock the door. I\'m going to go have a talk with Spider.', 'angry'), S2('walter', '(radio) Jace. Personal business is bad business.'), S2('jace', 'She\'s been my best friend since third grade, Mr. Black. She\'s the only person who never asked me for anything.', 'angry'), S2('jace', 'Stay in the RV.', 'angry')] },
       { cine: false, objective: 'Clear out Spider\'s trap house', music: 'action', spawn: [{ t: 'gunner', x: 1000 }, { t: 'thug', x: 900 }, { t: 'smg', x: 1350, y: GROUND - 130 }, { t: 'knifer', x: 1200 }] },
       { clear: true }, { cp: true }, { reach: 1700, spawn: [{ t: 'shotgunner', x: 2300 }, { t: 'gunner', x: 2550, y: GROUND - 140 }, { t: 'smg', x: 2700 }, { t: 'thug', from: 'left' }] },
       { clear: true }, { cp: true },
@@ -79,7 +79,7 @@ Object.assign(LEVELS, {
     build(L) { L.prop(c => { c.fillStyle = '#3a2e2a'; c.fillRect(780, GROUND - 260, 520, 260); c.fillStyle = '#f0c070'; c.fillRect(840, GROUND - 210, 90, 80); c.fillRect(1150, GROUND - 210, 90, 80); c.strokeStyle = INK; c.lineWidth = 4; c.strokeRect(780, GROUND - 260, 520, 260); c.fillStyle = '#5a3a2a'; c.fillRect(1000, GROUND - 150, 70, 150); }); L.lamp(600, 240); L.table(1180, 110); },
     steps: [
       { cine: true, walk: ['player', 920, true] },
-      { say: [S2('lena', 'You came back. You actually came back.', 'smile'), S2('jace', 'I\'m done, Lena. After this batch. We take the money and go somewhere with grass.', 'worried'), S2('lena', 'You always say "after this batch."', 'smile'), S2('jace', 'This time I mean it.'), N('(That night Jace sleeps for the first time in a week. The stash is still in his jacket on the chair.)')] },
+      { say: [S2('lena', 'You came back. You actually came back.', 'smile'), S2('jace', 'I\'m done, Lena. After this batch. Then I\'m paying for a real rehab for you. Somewhere with trees.', 'worried'), S2('lena', 'You\'ve been saying "after this batch" since we were nineteen.', 'smile'), S2('lena', 'Remember third grade? You told everyone you were going to be an astronaut.', 'smile'), S2('jace', 'Yeah. This time I mean it.'), N('(That night Jace crashes on Lena\'s couch, like when they were kids. He sleeps for the first time in a week. The stash is still in his jacket on the chair.)')] },
       { fade: 'out' }, { do: lv => { lv.named.lena.downed = 999; lv.named.lena.x = 1180; lv.player.x = 1000; } }, { wait: 1.2 }, { fade: 'in' },
       { say: [N('(Morning.)'), S2('jace', 'Lena? ...Lena. Hey. LENA!', 'worried'), N('(She is cold. There is a little blue left on the nightstand. Jace\'s blue.)'), N('(He doesn\'t remember the next hour. Only Walter at the door, very calm, holding his hat.)')] },
       { npc: { id: 'walter', x: 300, look: 'walter', face: 1 } }, { walk: ['walter', 820, true] },
@@ -143,7 +143,7 @@ Object.assign(LEVELS, {
       { spawn: [{ t: 'smg', from: 'left' }, { t: 'rifleman', from: 'right' }] },
       { until: lv => !lv.named.gideon.alive && !lv.named.fenn.alive }, { boss: null, objective: '' }, { clear: true }, { wait: 1.5 },
       { cine: true, walk: ['walter', 4600, true, false] }, { walk: ['player', 4700, true] },
-      { say: [S2('jace', 'It\'s done. Fenn\'s done. Nico\'s... even.', 'worried'), S2('walter', 'There\'s something you should hear from me, before you hear it from someone who doesn\'t love you.'), S2('walter', 'The night Lena died. I didn\'t knock. The door was open.'), S2('walter', 'She was choking, Jace. On her back. I could have turned her over. It would have taken one second.'), S2('jace', '...What.', 'worried'), S2('walter', 'You were going to leave. She was going to take you somewhere with grass. I needed my partner.'), S2('walter', 'So I watched. And then I went home. And I am telling you now so you understand exactly what I am willing to do.')] },
+      { say: [S2('jace', 'It\'s done. Fenn\'s done. Nico\'s... even.', 'worried'), S2('walter', 'There\'s something you should hear from me, before you hear it from someone who doesn\'t love you.'), S2('walter', 'The night Lena died. I didn\'t knock. The door was open.'), S2('walter', 'She was choking, Jace. On her back. I could have turned her over. It would have taken one second.'), S2('jace', '...What.', 'worried'), S2('walter', 'You were going to quit. She was the only person in this world who could talk you out of it. I needed my partner.'), S2('walter', 'So I watched. And then I went home. And I am telling you now so you understand exactly what I am willing to do.')] },
       { choice: { prompt: 'Walter just told you he watched Lena die.', options: [
         { label: 'Hit him', sub: 'Again. And again.', flag: ['truth', 'hit'], do: lv => { const p = lv.player, w = lv.walter; p.facing = w.x > p.x ? 1 : -1; let n = 0; const iv = setInterval(() => { if (n++ > 4) { clearInterval(iv); w.downed = 3; return; } p.melee = null; p.combo = n % 3; p.startMelee(lv); Audio.play('punch'); lv.shake(4); w.stagger = 0.3; lv.fx.blood(w.x, w.y - 80, p.facing, -0.3, 8, 0.6); }, 330); } },
         { label: 'Walk away', sub: 'Don\'t give him anything. Not even this.', flag: ['truth', 'walked'], do: lv => { lv.player.cine = 4300; } },
@@ -187,7 +187,7 @@ Object.assign(LEVELS, {
     build(L) { L.car(400, '#c8c0a0', 'sedan', 1); L.sign(1400, "DUSTY'S PAWN & GUNS", '#ffd060'); L.table(1200, 130); },
     steps: [
       { cine: true, title: 'ALONE', sub: 'CHAPTER THIRTEEN' }, { walk: ['player', 880, true] },
-      { say: [S2('dusty', 'Twelve grand buys you three bad decisions with guns and an RV that still starts. Mostly.'), S2('morty', 'Legally, I\'m advising you not to do this. Personally, I\'ve already called my travel agent.'), S2('jace', 'Dutch has Mr. Black. And my money.', 'angry'), S2('dusty', 'After what that man did to your girl, you\'re going back for him?'), S2('jace', 'I\'m going back for the money.', 'angry'), S2('jace', 'And I want him to see me do it.', 'angry'), S2('morty', 'Wonderful. I love a client with closure issues. Dutch\'s compound is out past Route 9. You didn\'t hear it from me. You didn\'t hear anything from me, ever.')] },
+      { say: [S2('dusty', 'Twelve grand buys you three bad decisions with guns and an RV that still starts. Mostly.'), S2('morty', 'Legally, I\'m advising you not to do this. Personally, I\'ve already called my travel agent.'), S2('jace', 'Dutch has Mr. Black. And my money.', 'angry'), S2('dusty', 'After what that man did to your best friend, you\'re going back for him?'), S2('jace', 'I\'m going back for the money.', 'angry'), S2('jace', 'And I want him to see me do it.', 'angry'), S2('morty', 'Wonderful. I love a client with closure issues. Dutch\'s compound is out past Route 9. You didn\'t hear it from me. You didn\'t hear anything from me, ever.')] },
       { fade: 'out' }, { end: true },
     ],
   },
@@ -219,7 +219,7 @@ CHAPTERS.push(
   { title: 'Loco', node: 'junk', requires: s => s.bags >= 8 ? null : 'Rafa wants at least 8 bags. Cook more in the RV.', seq: [{ level: 'junkyard', onStart: s => { s.bags = Math.max(0, s.bags - 8); } }], after: 'Rafa is dead and his corners are empty. Southside is up for grabs, if you can take it from Spider.' },
   { title: 'Corners', node: 'block', seq: [{ level: 'southside' }], after: 'Southside is yours, and Nico runs the corner. Hire dealers, keep them stocked, and watch the morning reports. You need precursor: Vamonos Chemical has a warehouse full.' },
   { title: 'Barrels', node: 'chem', seq: [{ level: 'warehouse' }], after: 'Ten barrels of precursor. Time to lie low on the open road...' },
-  { title: 'Highway to Nowhere', node: 'road', seq: [{ level: 'highway1' }], after: 'The Dust Dogs know your RV now. University Row is open for business. And Lena called. She sounded wrong.' },
+  { title: 'Highway to Nowhere', node: 'road', seq: [{ level: 'highway1' }], after: 'The Dust Dogs know your RV now. University Row is open for business. And Lena, your best friend since third grade, called. She sounded wrong.' },
   { title: 'Lena', node: 'trap', seq: [{ level: 'traphouse' }, { level: 'lenaEnd' }], after: 'Lena is gone. Walter says work helps. The Crossroads Motel is out on Route 9; Rafa\'s cousins are looking for you.' },
   { title: 'The Twins', node: 'motel', requires: s => s.stats.bagsSold >= 25 ? null : 'Walter: "We need money for the move. Sell at least 25 bags total first." (' + s.stats.bagsSold + '/25)', seq: [{ level: 'motel' }], after: 'Walter wants a meeting with the man who owns the Golden Hen. The truck stop on Route 9 is open for bulk deals.' },
   { title: 'Golden Hen', node: 'hen', seq: [{ level: 'goldenhen' }, { level: 'superlab' }], after: 'Fenn wants Southside. You told him no. Go check on Nico.' },
@@ -233,7 +233,7 @@ CHAPTERS.push(
 // new story locations on the map
 Object.assign(NODES, {
   block: { x: 690, y: 610, name: 'Southside Blocks', sub: 'Spider\'s territory', icon: 'story' },
-  trap: { x: 610, y: 540, name: 'Spider\'s Trap House', sub: 'Lena is in trouble', icon: 'story' },
+  trap: { x: 610, y: 540, name: 'Spider\'s Trap House', sub: 'Your best friend is in trouble', icon: 'story' },
   yard: { x: 1150, y: 470, name: 'Route 9 Stockyard', sub: 'Fenn\'s people', icon: 'story' },
   hq: { x: 860, y: 130, name: 'Golden Hen Distribution', sub: 'Fenn\'s headquarters', icon: 'story' },
   canyon: { x: 330, y: 330, name: 'Dead Horse Canyon', sub: 'The RV camp', icon: 'story' },
