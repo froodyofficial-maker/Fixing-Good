@@ -123,8 +123,8 @@ canvas.addEventListener('wheel', e => { Input.wheel += Math.sign(e.deltaY); e.pr
 
 // ---------- settings + save ----------
 const Settings = { volume: 0.8, music: 0.5, shake: 1, gore: 2, dialogue: 'show' }; // gore: 0 off, 1 low, 2 full
-function store(k, v) { try { localStorage.setItem('fixinggood.' + k, JSON.stringify(v)); } catch (e) { } }
-function load(k) { try { const v = localStorage.getItem('fixinggood.' + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function store(k, v) { try { localStorage.setItem((DEMO ? 'fixinggood.demo.' : 'fixinggood.') + k, JSON.stringify(v)); } catch (e) { } }
+function load(k) { try { const v = localStorage.getItem((DEMO ? 'fixinggood.demo.' : 'fixinggood.') + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 Object.assign(Settings, load('settings') || {});
 
 // ---------- audio (all synthesized) ----------
@@ -243,6 +243,9 @@ const Audio = {
     }
   }
 };
+function perk(k) { const s = typeof Game !== 'undefined' && Game.state; return (s && s.perks && s.perks[k]) || 0; }
+// the demo build sets window.FG_DEMO before the game scripts run
+const DEMO = typeof window !== 'undefined' && !!window.FG_DEMO;
 
 /* ===== js/art.js ===== */
 'use strict';
@@ -1518,7 +1521,7 @@ class Actor {
     if (g && !g.melee && g.mag === 0 && !g.reload && this.roll <= 0 && g.cd <= 0 && (this.team !== 'player' || this.wantAutoReload)) g.startReload(this);
   }
   physics(dt, lv) {
-    const A = this.arch, sp = (A.speed || 260) * (this.crouching ? 0.45 : 1) * (this.burn > 0 && this.team === 'enemy' ? 1.3 : 1);
+    const A = this.arch, sp = (A.speed || 260) * (this.crouching ? 0.45 : 1) * (this.isPlayer() ? 1 + 0.1 * perk('fleet') : 1) * (this.burn > 0 && this.team === 'enemy' ? 1.3 : 1);
     if (this.roll > 0) { this.roll -= dt; this.vx = this.rollDir * 470; }
     else {
       const target = this.moveX * sp, acc = this.onGround ? 2600 : 1200;
@@ -1641,7 +1644,7 @@ class Actor {
     for (let i = 0; i < d.bullets; i++) {
       const a = baseA + rand(-1, 1) * d.spread * spreadMul;
       const spd = d.speed * (this.team === 'enemy' ? 0.62 : 1) * rand(0.95, 1.05);
-      lv.bullets.push({ x: S[0], y: S[1], sx: muzzle[0], sy: muzzle[1], vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, dmg: d.dmg * (this.team === 'enemy' ? (this.boss ? 0.42 : 0.4) * (d.bullets > 1 ? 0.6 : 1) : this.team === 'ally' ? 1.4 : 1) * (this.isPlayer() && Game.state.upgrades.hollow ? 1.2 : 1), team: this.team, owner: this, life: 0.9, pierce: d.pierce || 0, fire: fireRounds, knock: d.knock / d.bullets, travelled: 0, shotgun: d.bullets > 1, hitSet: new Set() });
+      lv.bullets.push({ x: S[0], y: S[1], sx: muzzle[0], sy: muzzle[1], vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, dmg: d.dmg * (this.team === 'enemy' ? (this.boss ? 0.42 : 0.4) * (d.bullets > 1 ? 0.6 : 1) : this.team === 'ally' ? 1.4 : 1) * (this.isPlayer() && Game.state.upgrades.hollow ? 1.2 : 1) * (this.isPlayer() ? 1 + 0.15 * perk('power') : 1), team: this.team, owner: this, life: 0.9, pierce: d.pierce || 0, fire: fireRounds, knock: d.knock / d.bullets, travelled: 0, shotgun: d.bullets > 1, hitSet: new Set() });
     }
     lv.fx.muzzle(muzzle[0], muzzle[1], this.gAng, d.bullets > 1 ? 1.5 : d.heavy ? 1.3 : 1, fireRounds);
     if (d.reloadType !== 'shell' && d.reloadType !== 'revolver') lv.fx.casing(this.L2W(d.eject[0], d.eject[1]), this.f);
@@ -1763,7 +1766,7 @@ class Actor {
     if (this.isPlayer() && Game.cheatGod) dmg = 0;
     if (this.isPlayer()) {
       if (this.iframes > 0) return false;
-      dmg *= Game.diffMul();
+      dmg *= Game.diffMul() * Math.pow(0.88, perk('tough'));
       if (o.kind === 'fire') dmg *= 0.5;
       if (o.kind === 'bullet') dmg = Math.min(dmg, 20); else if (o.kind === 'melee') dmg = Math.min(dmg, 22);
       // burst limiter: past ~35 damage in a short window, extra damage is mostly soaked (no instant shredding)
@@ -1947,8 +1950,8 @@ class Level {
     if (!d.noPlayer) {
       const guns = d.unarmed ? [] : st.weapons.slice();
       const p = new Actor({ kind: 'player', team: 'player', x: startX, look: d.playerLook || 'jace', guns, armor: st.armor, id: 'player' });
-      p.maxHp = 100 + (st.upgrades.health ? 40 : 0); p.hp = p.maxHp;
-      p.reloadMul = st.upgrades.reload ? 0.72 : 1;
+      p.maxHp = 100 + (st.upgrades.health ? 40 : 0) + 25 * perk('vital'); p.hp = p.maxHp;
+      p.reloadMul = (st.upgrades.reload ? 0.72 : 1) * Math.pow(0.85, perk('quick'));
       // carry over magazine contents between levels
       p.guns.forEach(g => { if (st.mags[g.key] !== undefined) g.mag = st.mags[g.key]; });
       const gi = p.guns.findIndex(g => g.key === st.lastGun); if (gi >= 0) p.gi = gi;
@@ -2058,7 +2061,7 @@ class Level {
           this.bullets.splice(i, 1); continue;
         } else {
           const a = hit.a; b.hitSet.add(a);
-          const mul = hit.head ? (b.team === 'enemy' ? 1.4 : 2.6) : 1;
+          const mul = hit.head ? (b.team === 'enemy' ? 1.4 : 2.6 * (b.team === 'player' ? 1 + 0.4 * perk('head') : 1)) : 1;
           const close = b.shotgun && b.travelled < 200;
           const dmg = b.dmg * mul * (close ? 1.25 : 1);
           const killed = a.hurt(dmg, { kind: 'bullet', x: hx, y: hy, dx, dy, head: hit.head, knock: b.knock * (close ? 1.6 : 1), power: dmg, from: b.owner, shotgunClose: close, ignite: b.fire }, this);
@@ -2093,6 +2096,7 @@ class Level {
       if (a.team === 'player' && (!o.owner || o.owner.team !== 'enemy')) dm *= 0.35; // own throws + barrels hurt you far less
       if (a.id === 'walter') dm *= 0.3;
       if (a.passive) continue;
+      if (o.friendly && (a.team === 'player' || a.team === 'ally')) continue;
       const dx = (c[0] - x) / (d || 1), dy = (c[1] - y) / (d || 1) - 0.6;
       const killed = a.hurt(dm, { kind: 'blast', x: c[0], y: c[1], dx, dy, knock: 1100 * k, close: d < r * 0.55, ignite: o.fire }, this);
       if (!killed && a.alive) { a.vx += dx * 500 * k; a.vy = -380 * k; a.onGround = false; a.stagger = 0.5; }
@@ -2137,7 +2141,8 @@ class Level {
   onDeath(a, o) {
     if (a.team === 'enemy') {
       this.stats.kills++; Game.state.stats.kills++;
-      if (this.player && this.player.alive) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 6); // adrenaline
+      if (this.player && this.player.alive) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 6 + 8 * perk('vamp')); // adrenaline
+      if (perk('volatile') && Math.random() < 0.2 * perk('volatile')) { const ex = a.x, ey = a.y - 40; setTimeout(() => { if (Game.level === this) this.explode(ex, ey, { r: 150, dmg: 110, small: true, friendly: true }); }, 120); }
       if (o.from && o.from.id === 'walter' && Math.random() < 0.3) this.banter('walter', choose(['Got him.', 'That one\'s mine.', 'Applied science.', 'Stay behind cover, Jace!', 'Reloading— no. Still have rounds.']));
       if (this.player) {
         const st = Game.state, g = a.gun;
@@ -2165,7 +2170,7 @@ class Level {
       if (p && p.alive && Math.abs(p.x - k.x) < 40 && Math.abs(p.y - 30 - k.y) < 60) {
         const st = Game.state;
         if (k.kind === 'ammo') { st.ammo[k.type] = (st.ammo[k.type] || 0) + k.amount; this.toast('+' + k.amount + ' ' + AMMO_NAMES[k.type]); Audio.play('pickup'); }
-        else if (k.kind === 'cash') { st.money += k.amount; this.stats.cash += k.amount; this.toast('+' + fmtMoney(k.amount)); Audio.play('cash'); }
+        else if (k.kind === 'cash') { k.amount = Math.round(k.amount * (1 + 0.5 * perk('greed'))); st.money += k.amount; this.stats.cash += k.amount; this.toast('+' + fmtMoney(k.amount)); Audio.play('cash'); }
         else if (k.kind === 'med') {
           if (p.hp < p.maxHp * 0.6) { p.hp = Math.min(p.maxHp, p.hp + 45); this.toast('+45 HP'); this.healFlash = 0.6; }
           else if (st.medkits < 5) { st.medkits++; this.toast('+1 Medkit'); } else continue;
@@ -3129,18 +3134,32 @@ class MenuScene {
     drawLogo(c, 70, 60, 0.82, 0.25 + Math.sin(this.t * 1.5) * 0.1);
     UI.text(c, 'They fixed good. Then good fixed them.', 74, 290, 18, '#b8c8a8');
     if (!this.overlay) {
-      let y = 330;
-      if (this.hasSave) { if (UI.btn(c, 70, y, 300, 50, 'CONTINUE', { align: 'left', sub: '' })) { Game.loadSave(); if (Game.state.chapter === 0) Story.play(0); else Game.setScene(new HubScene()); } y += 60; }
-      if (UI.btn(c, 70, y, 300, 50, 'NEW GAME', { align: 'left' })) this.overlay = 'new'; y += 60;
-      if (UI.btn(c, 70, y, 300, 50, 'CONTROLS', { align: 'left' })) this.overlay = 'controls'; y += 60;
-      if (UI.btn(c, 70, y, 300, 50, 'SETTINGS', { align: 'left' })) this.overlay = 'settings'; y += 60;
-      if (UI.btn(c, 70, y, 300, 50, 'CREDITS', { align: 'left' })) this.overlay = 'credits';
+      let y = 318;
+      if (this.hasSave) { if (UI.btn(c, 70, y, 300, 50, 'CONTINUE', { align: 'left', sub: '' })) { Game.loadSave(); if (Game.state.chapter === 0) Story.play(0); else Game.setScene(new HubScene()); } y += 56; }
+      if (UI.btn(c, 70, y, 300, 48, 'NEW GAME', { align: 'left' })) this.overlay = 'new'; y += 56;
+      if (UI.btn(c, 70, y, 300, 48, 'BLUE SKY RUN', { align: 'left', hot: '#2a6a8a', border: 'rgba(127,216,240,.6)' })) this.overlay = 'run'; y += 56;
+      if (UI.btn(c, 70, y, 300, 48, 'CONTROLS', { align: 'left' })) this.overlay = 'controls'; y += 56;
+      if (UI.btn(c, 70, y, 300, 48, 'SETTINGS', { align: 'left' })) this.overlay = 'settings'; y += 56;
+      if (UI.btn(c, 70, y, 300, 48, 'CREDITS', { align: 'left' })) this.overlay = 'credits';
     } else if (this.overlay === 'settings') drawSettings(c, () => this.overlay = null);
     else if (this.overlay === 'controls') drawControls(c, () => this.overlay = null);
     else if (this.overlay === 'credits') {
       UI.panel(c, W / 2 - 300, 160, 600, 380, 0.95); UI.text(c, 'CREDITS', W / 2, 210, 30, '#fff', 'center', true);
       ['FIXING GOOD', 'An original parody action game', '', 'Design, code, art & sound: generated in code', 'Every sprite, sound and note is procedural.', 'No image or audio files were harmed.', '', 'Font: Oswald (SIL Open Font License)'].forEach((l, i) => UI.text(c, l, W / 2, 260 + i * 28, i === 0 ? 22 : 17, i === 0 ? '#9fe88a' : '#ddd', 'center', i === 0));
       if (UI.btn(c, W / 2 - 90, 480, 180, 44, 'BACK') || Input.hit('Escape')) this.overlay = null;
+    } else if (this.overlay === 'run') {
+      c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(0, 0, W, H); UI.panel(c, W / 2 - 320, 130, 640, 470, 0.96);
+      UI.text(c, 'BLUE SKY RUN', W / 2, 184, 36, '#7fd8f0', 'center', true);
+      UI.text(c, 'An endless roguelite. Every night: pick a contract, survive it, pick a perk.', W / 2, 216, 16, '#ddd', 'center');
+      UI.text(c, 'Generated levels, random modifiers, a boss every fourth night. One life.', W / 2, 238, 16, '#ddd', 'center');
+      const best = load('runbest'), daily = load('rundaily' + Run.today());
+      UI.text(c, best ? `Best: ${best.score.toLocaleString()} (${best.night} nights)` : 'No runs yet', W / 2, 272, 16, '#9fe88a', 'center', true);
+      if (UI.btn(c, W / 2 - 250, 300, 500, 62, 'NEW RUN', { sub: 'A fresh random seed' })) Run.start(false);
+      if (DEMO) UI.btn(c, W / 2 - 250, 374, 500, 62, 'DAILY RUN', { sub: 'Full game only', disabled: true });
+      else if (UI.btn(c, W / 2 - 250, 374, 500, 62, 'DAILY RUN', { sub: 'Same seed for everyone today' + (daily ? ' · your best today: ' + daily.toLocaleString() : '') })) Run.start(true);
+      if (DEMO) UI.text(c, 'Demo: runs end after ' + RUN_DEMO_NIGHTS + ' nights.', W / 2, 466, 15, '#e0a080', 'center');
+      UI.text(c, 'Doesn\'t touch your story save.', W / 2, 492, 14, '#999', 'center');
+      if (UI.btn(c, W / 2 - 70, 520, 140, 44, 'BACK', { size: 15 }) || Input.hit('Escape')) this.overlay = null;
     } else if (this.overlay === 'new') {
       UI.panel(c, W / 2 - 300, 170, 600, 360, 0.95); UI.text(c, 'NEW GAME', W / 2, 220, 30, '#fff', 'center', true);
       if (this.hasSave) UI.text(c, 'This will overwrite your saved game.', W / 2, 252, 15, '#e0a080', 'center');
@@ -3150,7 +3169,8 @@ class MenuScene {
       if (UI.btn(c, W / 2 - 250, 412, 500, 56, 'HARD', { sub: 'Every bullet is a lesson' })) start('hard');
       if (UI.btn(c, W / 2 - 70, 478, 140, 40, 'BACK', { size: 15 }) || Input.hit('Escape')) this.overlay = null;
     }
-    UI.text(c, 'v1.0 · Fixing Good', W - 16, H - 14, 12, '#666', 'right');
+    UI.text(c, DEMO ? 'DEMO · Fixing Good' : 'v1.1 · Fixing Good', W - 16, H - 14, 12, DEMO ? '#e0a080' : '#666', 'right');
+    if (DEMO) { c.save(); c.translate(372, 70); c.rotate(-0.12); UI.panel(c, 0, 0, 110, 40, 0.9); UI.text(c, 'DEMO', 55, 29, 26, '#ffd060', 'center', true); c.restore(); }
     UI.cursor(c);
   }
 }
@@ -3161,6 +3181,7 @@ function poseStatic(x, y, f, opt = {}) {
 // ---------------------------------------------------------------- STORY CONTROLLER
 const Story = {
   play(ch) {
+    if (DEMO && ch >= DEMO_CHAPTERS) { Game.setScene(new DemoEndScene()); return; }
     const C = CHAPTERS[ch]; if (!C) { Game.setScene(new EndingScene()); return; }
     this.ch = ch; this.seq = C.seq; this.i = -1; this.next();
   },
@@ -3172,7 +3193,7 @@ const Story = {
     else if (it.cook) Game.setScene(new CookScene({ tutorial: true, done: () => this.next() }));
     else if (it.ending) { Game.state.chapter = CHAPTERS.length; Game.state.flags.finished = true; Game.save(); Game.setScene(new EndingScene()); }
   },
-  finish() { Game.state.chapter = this.ch + 1; Game.save(); Game.setScene(new HubScene({ message: CHAPTERS[this.ch].after, title: 'CHAPTER COMPLETE: ' + CHAPTERS[this.ch].title.toUpperCase() })); },
+  finish() { Game.state.chapter = this.ch + 1; Game.save(); if (DEMO && this.ch + 1 >= DEMO_CHAPTERS) return Game.setScene(new DemoEndScene()); Game.setScene(new HubScene({ message: CHAPTERS[this.ch].after, title: 'CHAPTER COMPLETE: ' + CHAPTERS[this.ch].title.toUpperCase() })); },
 };
 
 // ---------------------------------------------------------------- LEVEL WRAPPER
@@ -3212,6 +3233,12 @@ class LevelScene {
     const lv = this.lv; lv.draw(c);
     if (lv.failed && lv.failT > 1.2) {
       c.fillStyle = `rgba(40,0,0,${Math.min(0.75, (lv.failT - 1.2) * 0.8)})`; c.fillRect(0, 0, W, H);
+      if (Game.state.run) {
+        UI.text(c, 'YOU DIED', W / 2, 270, 72, '#ff4a3a', 'center', true);
+        UI.text(c, 'Night ' + Game.state.run.night + ' of Blue Sky Run. No second chances.', W / 2, 320, 20, '#f0d0c0', 'center');
+        if (lv.failT > 2 && UI.btn(c, W / 2 - 160, 380, 320, 56, 'SEE RESULTS')) Run.over();
+        UI.cursor(c); return;
+      }
       UI.text(c, 'GAME OVER', W / 2, 270, 72, '#ff4a3a', 'center', true);
       UI.text(c, lv.failReason || choose0(['"Jace... we were so close." — Walter', '"Get up, Jace. Get UP." — Walter'], lv), W / 2, 320, 20, '#f0d0c0', 'center');
       if (lv.checkpoint && UI.btn(c, W / 2 - 160, 370, 320, 52, 'RETRY FROM CHECKPOINT')) this.retry(true);
@@ -3227,11 +3254,14 @@ class LevelScene {
       UI.text(c, 'PAUSED', W / 2, 200, 56, '#fff', 'center', true);
       let y = 250;
       if (UI.btn(c, W / 2 - 150, y, 300, 50, 'RESUME')) this.paused = false; y += 60;
-      if (lv.checkpoint && UI.btn(c, W / 2 - 150, y, 300, 50, 'RETRY CHECKPOINT')) this.retry(true); if (lv.checkpoint) y += 60;
-      if (UI.btn(c, W / 2 - 150, y, 300, 50, 'RESTART MISSION')) this.retry(false); y += 60;
+      if (!Game.state.run) {
+        if (lv.checkpoint && UI.btn(c, W / 2 - 150, y, 300, 50, 'RETRY CHECKPOINT')) this.retry(true); if (lv.checkpoint) y += 60;
+        if (UI.btn(c, W / 2 - 150, y, 300, 50, 'RESTART MISSION')) this.retry(false); y += 60;
+      }
       if (UI.btn(c, W / 2 - 150, y, 300, 50, 'CONTROLS')) this.overlay = 'controls'; y += 60;
       if (UI.btn(c, W / 2 - 150, y, 300, 50, 'SETTINGS')) this.overlay = 'settings'; y += 60;
-      if (UI.btn(c, W / 2 - 150, y, 300, 50, Game.state.chapter > 0 ? 'ABANDON (BACK TO MAP)' : 'QUIT TO MENU')) { Game.state = Object.assign(Game.newState(), JSON.parse(this.snapshot)); Game.save(); Game.setScene(Game.state.chapter > 0 ? new HubScene() : new MenuScene()); }
+      if (Game.state.run) { if (UI.btn(c, W / 2 - 150, y, 300, 50, 'ABANDON RUN')) { this.paused = false; Run.over(); } }
+      else if (UI.btn(c, W / 2 - 150, y, 300, 50, Game.state.chapter > 0 ? 'ABANDON (BACK TO MAP)' : 'QUIT TO MENU')) { Game.state = Object.assign(Game.newState(), JSON.parse(this.snapshot)); Game.save(); Game.setScene(Game.state.chapter > 0 ? new HubScene() : new MenuScene()); }
       UI.cursor(c);
     }
   }
@@ -3672,30 +3702,80 @@ class CookScene {
   }
 }
 
-// ---------------------------------------------------------------- ENDING + CREDITS
+// ---------------------------------------------------------------- ENDING + CREDITS + POST-CREDITS
 class EndingScene {
-  constructor() { this.t = 0; this.x = 0; this.theme = THEMES.dusk; this.epi = epilogueLines(); this.E = this.epi.length * 4 + 2; }
+  constructor() { this.t = 0; this.x = 0; this.theme = THEMES.dusk; this.C = 46; this.S = 22; this.smoke = []; }
   enter() { Audio.music('menu'); }
-  update(dt) { this.t += dt; this.x += dt * (this.t < this.E ? 120 : 900); if (this.t > this.E && Input.hit('Space') === false) {} if (this.t < this.E && (Input.hit('Space') || Input.mclick)) this.t = Math.ceil(this.t / 4) * 4; if (this.t > 46 + this.E || (this.t > 3 && Input.hit('Escape'))) { Game.setScene(new HubScene({ title: 'THE END', message: 'You finished Fixing Good. The desert is still out there: keep cooking, trading and fighting off the odd ambush for as long as you like.' })); } }
+  done() { Game.state.flags.sawStinger = true; Game.save(); Game.setScene(new HubScene({ title: 'THE END?', message: 'You finished Fixing Good. The desert is still out there: keep cooking, trading and fighting off the odd ambush for as long as you like. Or try BLUE SKY RUN from the main menu.' })); }
+  update(dt) {
+    this.t += dt; this.x += dt * 120;
+    const skip = Input.hit('Escape') || Input.hit('Enter');
+    if (this.t < this.C) { if (this.t > 3 && skip) this.t = this.C; return; }
+    const s = this.t - this.C;
+    if (s > 9 && Math.random() < 0.5) this.smoke.push({ x: 742 + rand(-4, 4), y: GROUND - 214, s: 6, life: 3.5, vx: rand(4, 18) });
+    for (const p of this.smoke) { p.life -= dt; p.y -= 28 * dt; p.x += p.vx * dt; p.s += dt * 10; }
+    this.smoke = this.smoke.filter(p => p.life > 0);
+    if (s > this.S || (s > 2 && skip)) this.done();
+  }
+  caption(c, l, y, a, size = 22, col = '#f2ece0') { c.globalAlpha = clamp(a, 0, 1); UI.text(c, l, W / 2, y, size, col, 'center', true); c.globalAlpha = 1; }
   draw(c) {
+    if (this.t >= this.C) return this.drawStinger(c, this.t - this.C);
     drawBackdrop(c, this.theme, this.x); drawGround(c, this.theme, this.x);
-    // Jace in the getaway car, screaming into the sunset
+    // Jace in the getaway car, driving into the sunset
     const bob = Math.sin(this.t * 16) * 1.5;
     drawCar(c, 470, GROUND + bob, 260, '#c0a040', 'sedan', 1);
     c.fillStyle = LOOKS.jace.skin; c.beginPath(); c.arc(640, GROUND - 74 + bob, 10, 0, TAU); c.fill(); c.fillStyle = LOOKS.jace.hatColor; c.beginPath(); c.arc(640, GROUND - 77 + bob, 10, PI, TAU); c.fill();
     c.fillStyle = 'rgba(0,0,0,' + Math.max(0, 1 - this.t / 2) + ')'; c.fillRect(0, 0, W, H);
     c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, 0, W, 100); c.fillRect(0, H - 100, W, 100);
-    if (this.t < this.E) {
-      c.fillStyle = 'rgba(0,0,0,.82)'; c.fillRect(0, 0, W, H);
-      UI.text(c, 'EPILOGUE', W / 2, 150, 18, '#9fe88a', 'center', true);
-      let ey = 210; this.epi.forEach((l, i) => { const a = clamp((this.t - 1 - i * 4) / 1.2, 0, 1); if (a <= 0) return; c.globalAlpha = a; c.font = `21px ${FONT}`; c.fillStyle = '#f2ece0'; c.textAlign = 'center'; const lines = []; let line = ''; for (const w of l.split(' ')) { const tst = line ? line + ' ' + w : w; if (c.measureText(tst).width > 900 && line) { lines.push(line); line = w; } else line = tst; } lines.push(line); lines.forEach((ln, j) => c.fillText(ln, W / 2, ey + j * 27)); ey += lines.length * 27 + 26; c.textAlign = 'left'; c.globalAlpha = 1; });
-      UI.text(c, 'Click to continue', W - 20, H - 30, 13, '#888', 'right'); return;
-    }
-    const t = this.t - this.E;
+    const t = this.t;
     if (t > 2 && t < 12) { c.globalAlpha = Math.min(1, (t - 2) / 1.5, (12 - t) / 1.5); drawLogo(c, W / 2 - 160, 120, 0.85, 0.4); c.globalAlpha = 1; }
-    const credits = ['FIXING GOOD', '', 'STARRING', 'Jace Pinkett', 'Walter Black', '', 'AND', 'Rafa "Loco" Vargas', 'The Cortez Twins', 'Augusto Fenn', 'Don Esteban', 'Uncle Dutch', 'Agent Hal Brewer', 'Morty Goodfellow, Esq.', 'Dusty', '', 'Every pixel, gunshot and note', 'was generated in code', '', 'STATS', 'Kills: ' + Game.state.stats.kills, 'Headshots: ' + Game.state.stats.heads, 'Batches cooked: ' + Game.state.stats.cooks, 'Best purity: ' + Game.state.stats.bestPurity.toFixed(1) + '%', 'Street earnings: ' + fmtMoney(Game.state.stats.earned), '', '', 'Thanks for playing.'];
+    const credits = ['FIXING GOOD', '', 'STARRING', 'Jace Pinkett', 'Walter Black', '', 'AND', 'Lena Alvarez', 'Nico', 'Rafa "Loco" Vargas', 'The Cortez Twins', 'El Gordo', 'Augusto Fenn', 'Don Esteban', 'Uncle Dutch', 'Rook', 'Agent Hal Brewer', 'Morty Goodfellow, Esq.', 'Dusty', '', 'Every pixel, gunshot and note', 'was generated in code', '', 'STATS', 'Kills: ' + Game.state.stats.kills, 'Headshots: ' + Game.state.stats.heads, 'Batches cooked: ' + Game.state.stats.cooks, 'Best purity: ' + Game.state.stats.bestPurity.toFixed(1) + '%', 'Street earnings: ' + fmtMoney(Game.state.stats.earned), '', 'Thanks for playing.', '', 'Stay for one more thing.'];
     if (t > 12) { const off = (t - 12) * 48; credits.forEach((l, i) => { const y = H + 20 + i * 40 - off; if (y < 90 || y > H - 80) return; UI.text(c, l, W / 2, y, l === l.toUpperCase() && l.length > 2 ? 26 : 22, l === l.toUpperCase() ? '#9fe88a' : '#fff', 'center', l === l.toUpperCase()); }); }
     UI.text(c, 'Esc to skip', W - 20, H - 30, 13, '#888', 'right');
+  }
+  drawStinger(c, s) {
+    const fadeIn = k => clamp(k, 0, 1);
+    if (s < 9) {
+      // the county morgue. Drawer fourteen is open, and empty.
+      const fl = s > 0.6 && s < 0.9 || s > 1.2 && s < 1.3 ? 0.35 : 1;
+      const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#16201f'); g.addColorStop(1, '#070b0b'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      const X0 = 300, Y0 = 130, DW = 170, DH = 120;
+      for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) {
+        const x = X0 + k * (DW + 10), y = Y0 + r * (DH + 10), open = r === 1 && k === 2;
+        c.fillStyle = open ? '#050707' : '#7d8a8a'; c.fillRect(x, y, DW, DH); c.strokeStyle = INK; c.lineWidth = 4; c.strokeRect(x, y, DW, DH);
+        if (!open) { c.fillStyle = '#b8c4c2'; c.fillRect(x + DW / 2 - 30, y + 54, 60, 10); c.fillStyle = '#e8e2c8'; c.fillRect(x + 14, y + 14, 46, 26); c.fillStyle = '#333'; c.font = `bold 13px ${FONT}`; c.fillText(String(r * 4 + k + 8), x + 24, y + 33); }
+      }
+      // pulled-out tray coming toward the camera
+      const ox = X0 + 2 * (DW + 10), oy = Y0 + DH + 10;
+      c.fillStyle = '#9aa6a6'; c.beginPath(); c.moveTo(ox, oy + DH); c.lineTo(ox + DW, oy + DH); c.lineTo(ox + DW + 70, oy + DH + 170); c.lineTo(ox - 70, oy + DH + 170); c.closePath(); c.fill(); c.strokeStyle = INK; c.lineWidth = 4; c.stroke();
+      c.fillStyle = '#eceae2'; c.beginPath(); c.moveTo(ox + 10, oy + DH + 60); c.quadraticCurveTo(ox + 80, oy + DH + 30, ox + 150, oy + DH + 80); c.quadraticCurveTo(ox + 200, oy + DH + 140, ox + 60, oy + DH + 150); c.quadraticCurveTo(ox - 30, oy + DH + 130, ox + 10, oy + DH + 60); c.fill(); c.stroke();
+      c.fillStyle = '#e8e2c8'; c.fillRect(ox + 14, Y0 + DH + 10 + 14, 46, 26); c.fillStyle = '#a02020'; c.font = `bold 13px ${FONT}`; c.fillText('14', ox + 24, Y0 + DH + 10 + 33);
+      // the toe tag on the floor
+      c.save(); c.translate(ox + 380, oy + DH + 150); c.rotate(-0.25); c.fillStyle = '#e8dcb0'; c.fillRect(-60, -22, 120, 44); c.strokeStyle = INK; c.lineWidth = 3; c.strokeRect(-60, -22, 120, 44); c.fillStyle = '#222'; c.font = `bold 14px ${FONT}`; c.textAlign = 'center'; c.fillText('BLACK, WALTER', 0, -2); c.font = `12px ${FONT}`; c.fillText('#0614 · DOA', 0, 15); c.textAlign = 'left'; c.restore();
+      c.fillStyle = `rgba(200,255,240,${0.06 * fl})`; c.fillRect(0, 0, W, H);
+      c.fillStyle = `rgba(0,0,0,${1 - fl * 0.9})`; c.fillRect(0, 0, W, H);
+      this.caption(c, 'COUNTY CORONER\'S OFFICE  ·  THREE WEEKS LATER', 70, fadeIn(s - 0.5), 22, '#9fe88a');
+      this.caption(c, '"Who signed out drawer fourteen?"', H - 120, fadeIn(s - 2.5) * fadeIn(8.6 - s));
+      this.caption(c, '"Nobody. Paperwork says he was cremated Tuesday. By a lawyer."', H - 84, fadeIn(s - 5) * fadeIn(8.6 - s), 20, '#c8d0c8');
+      c.fillStyle = `rgba(0,0,0,${clamp(1 - s * 2, 0, 1) + clamp((s - 8.4) * 2, 0, 1)})`; c.fillRect(0, 0, W, H);
+      return;
+    }
+    // somewhere south of the border: a shack, a blue glow, a man in a hat
+    const u = s - 9;
+    drawBackdrop(c, THEMES.night, 200 + u * 6); drawGround(c, THEMES.night, 200 + u * 6);
+    c.fillStyle = '#5a4a3e'; c.fillRect(560, GROUND - 200, 260, 200); c.strokeStyle = INK; c.lineWidth = 4; c.strokeRect(560, GROUND - 200, 260, 200);
+    c.fillStyle = '#4a3a30'; c.fillRect(732, GROUND - 240, 22, 40); c.strokeRect(732, GROUND - 240, 22, 40);
+    const glow = 0.75 + Math.sin(u * 3) * 0.08; c.fillStyle = `rgba(90,200,240,${glow})`; c.fillRect(600, GROUND - 150, 70, 56); c.strokeRect(600, GROUND - 150, 70, 56);
+    const gg = c.createRadialGradient(635, GROUND - 120, 10, 635, GROUND - 120, 260); gg.addColorStop(0, 'rgba(90,200,240,.35)'); gg.addColorStop(1, 'rgba(90,200,240,0)'); c.fillStyle = gg; c.fillRect(300, GROUND - 400, 700, 420);
+    for (const p of this.smoke) { c.fillStyle = `rgba(140,210,240,${0.16 * p.life / 3.5})`; c.beginPath(); c.arc(p.x, p.y, p.s, 0, TAU); c.fill(); }
+    const J = poseStatic(900, GROUND, -1); drawFigure(c, J, LOOKS.walterHat, -1, {});
+    // glasses glint
+    if (u > 5.5 && u < 6.3) { const k = 1 - Math.abs(u - 5.9) / 0.4; c.fillStyle = `rgba(255,255,255,${k})`; c.beginPath(); c.arc(886, GROUND - 82, 6 * k + 2, 0, TAU); c.fill(); }
+    c.fillStyle = 'rgba(0,0,0,.4)'; c.fillRect(0, 0, W, 90); c.fillRect(0, H - 110, W, 110);
+    this.caption(c, 'SOMEWHERE SOUTH OF THE BORDER', 60, fadeIn(u - 0.5), 22, '#9fe88a');
+    this.caption(c, '"Mr. Goodfellow. Tell your guy the new teeth are excellent."', H - 66, fadeIn(u - 2) * fadeIn(7.5 - u), 21);
+    if (u > 7.5) { c.fillStyle = `rgba(0,0,0,${fadeIn((u - 7.5) * 0.8) * 0.85})`; c.fillRect(0, 0, W, H); c.save(); c.shadowColor = '#3cff7a'; c.shadowBlur = 24; this.caption(c, 'WALTER BLACK WILL RETURN', H / 2, fadeIn(u - 8), 54, '#d8ffd8'); c.restore(); this.caption(c, 'FIXING GOOD WILL CONTINUE', H / 2 + 50, fadeIn(u - 9), 18, '#9fe88a'); }
+    c.fillStyle = `rgba(0,0,0,${clamp(1 - u * 2, 0, 1)})`; c.fillRect(0, 0, W, H);
   }
 }
 
@@ -4328,23 +4408,171 @@ DISTRICTS.campus.unlock = s => s.chapter >= 5;
 DISTRICTS.truck.unlock = s => s.chapter >= 7;
 DISTRICTS.casino.unlock = s => s.chapter >= 10;
 
-// ---------- epilogue text for the ending ----------
-function epilogueLines() {
-  const f = Game.state.flags, st = Game.state, L = [];
-  if (f.ending === 'leave') L.push('Jace drove until the gas ran out, somewhere past the state line, with four barrels of money and the radio off.', 'Walter Black died alone in the dirt outside Dutch\'s compound. The DEA found him the next morning, still wearing the hat.');
-  else L.push('Jace sat in the dirt with Walter until the sirens came. Walter didn\'t say anything else. Jace didn\'t ask him to.', 'When the DEA arrived, Jace was holding a dead man\'s hand and four barrels of money he never touched again.');
-  if (f.nico === 'executed') L.push('Jace still sees the stockyard when he closes his eyes. Nico\'s killer, on his knees, and the sound it made.');
-  else if (f.nico === 'spared') L.push('The man who killed Nico made it to Arizona. Fenn\'s people found him there a week later. Mercy bought him seven days.');
-  if (f.truth === 'hit') L.push('Jace broke two knuckles on Walter Black\'s face the night he learned the truth about Lena. They never healed right.');
-  else if (f.truth === 'walked') L.push('Jace never told anyone what Walter said about Lena. Some things you carry so nobody else has to.');
-  const crew = (st.dealers || []).filter(d => d.status === 'active').length;
-  L.push(crew ? `${crew} of Jace's dealers kept working the corners. Somebody always does.` : 'The corners filled back up within a month. Somebody always does.');
-  L.push(`Street earnings: ${fmtMoney(st.stats.earned)}. Bags sold: ${st.stats.bagsSold}. People killed: ${st.stats.kills}.`);
-  return L;
+
+/* ===== js/story3.js ===== */
+'use strict';
+// ============================================================
+//  FIXING GOOD - more story: the funeral, Morty, the Thursday convoy,
+//  the chop shop, the ambiguous ending and the post-credits hook
+//  (loads after story2.js)
+// ============================================================
+Object.assign(LOOKS, {
+  lenaMom: { name: 'Carol (Lena\'s mom)', skin: '#ecc4a4', hair: 'long', hairColor: '#8a8a88', shirt: '#1a1a1a', jacket: '#222', sleeves: 'long', pants: '#1a1a1a', shoes: '#111', build: 0.95 },
+  gordo: { name: 'El Gordo', skin: '#a8754e', hair: 'buzz', hairColor: '#111', beard: 'full', beardColor: '#111', shirt: '#e8e0c8', jacket: '#6a2a2a', sleeves: 'short', tattoo: true, pants: '#2a2a2a', shoes: '#3a2a1a', build: 1.35, chain: true },
+  rook: { name: 'Rook', skin: '#e2b08a', hair: 'long', hairColor: '#3a2a1a', beard: 'full', beardColor: '#4a3a2a', shirt: '#2a2a2a', vest: '#3a2a1a', sleeves: 'short', tattoo: true, pants: '#2a3550', shoes: '#111', build: 1.3 },
+  priest: { name: 'Father Ruiz', skin: '#c58d63', hair: 'ring', hairColor: '#bdbdbd', shirt: '#111', jacket: '#151515', sleeves: 'long', pants: '#111', shoes: '#111', build: 1.0 },
+  hired: { name: 'Hired gun', skin: '#c58d63', hair: 'buzz', hairColor: '#222', hat: 'cap', hatColor: '#4a5a3a', shirt: '#4a5a3a', vest: '#2a2a2a', sleeves: 'long', pants: '#3a3a2a', shoes: '#111', build: 1.1 },
+});
+Object.assign(ARCH, {
+  gordo: { hp: 780, armor: 160, speed: 150, weapon: 'shotgun', dist: [120, 280], acc: 0.05, react: 0.4, boss: true, look: 'gordo' },
+  rook: { hp: 900, armor: 100, speed: 250, weapon: 'axe', melee: true, boss: true, look: 'rook' },
+});
+
+Object.assign(LEVELS, {
+  // ---------------------------------------------------------------- the funeral (end of LENA)
+  funeral: {
+    theme: 'day', width: 2400, start: 260, noHud: true, unarmed: true, music: 'menu',
+    npcs: [{ id: 'mom', x: 1180, look: 'lenaMom', face: -1 }, { id: 'priest', x: 1320, look: 'priest', face: -1 }],
+    build(L) {
+      L.prop(c => {
+        // headstones + the open grave
+        for (const [x, h] of [[700, 60], [820, 50], [1500, 64], [1640, 54], [1780, 60], [1960, 48]]) { c.fillStyle = '#8a8a86'; c.beginPath(); c.moveTo(x, GROUND); c.lineTo(x, GROUND - h + 12); c.arc(x + 18, GROUND - h + 12, 18, PI, TAU); c.lineTo(x + 36, GROUND); c.fill(); c.strokeStyle = INK; c.lineWidth = 3; c.stroke(); }
+        c.fillStyle = '#3a2a1a'; c.fillRect(1020, GROUND - 4, 150, 10);
+        c.fillStyle = '#5a3a24'; c.fillRect(1030, GROUND - 26, 130, 22); c.strokeStyle = INK; c.lineWidth = 3; c.strokeRect(1030, GROUND - 26, 130, 22);
+        c.fillStyle = '#e8e0d0'; for (let i = 0; i < 6; i++) { c.beginPath(); c.arc(1050 + i * 18, GROUND - 30, 5, 0, TAU); c.fill(); }
+      });
+      L.cactus(400, 100); L.cactus(2150, 80); L.car(2020, '#2a2a2a', 'sedan', -1);
+    },
+    steps: [
+      { cine: true, title: 'THREE DAYS LATER', sub: 'SANTA ROSA CEMETERY' }, { wait: 1.2 }, { walk: ['player', 960, true] },
+      { say: [N('(Eleven people came. Lena would have made a joke about that. Something about quality over quantity.)'), S2('priest', '...and we commit our sister Lena to the ground, in sure and certain hope.'), S2('lenaMom', 'Jace. You came.', 'worried'), S2('jace', 'Mrs. Alvarez. I\'m so sorry. She was... she was my best friend.', 'worried'), S2('lenaMom', 'I know. Since you were eight. You two used to build forts in my backyard and tell everyone you were running away to Mars.', 'worried')] },
+      { say: [S2('lenaMom', 'The police say it was something new. Something blue. Something very pure.', 'neutral'), S2('lenaMom', 'You\'d tell me if you knew who made it. Wouldn\'t you, Jace?', 'angry'), S2('jace', '...', 'worried'), S2('lenaMom', 'Wouldn\'t you?', 'angry')] },
+      { choice: { prompt: 'Lena\'s mother is waiting for an answer.', options: [
+        { label: 'Lie to her', sub: '"I don\'t know who makes it, Mrs. Alvarez."', flag: ['funeral', 'lied'] },
+        { label: 'Say nothing', sub: 'Let her read it on your face.', flag: ['funeral', 'silent'] },
+      ] } },
+      { if: () => Game.state.flags.funeral === 'lied', say: [S2('jace', 'I don\'t know who makes it. I swear.', 'worried'), S2('lenaMom', 'She always said you were a terrible liar.', 'worried'), S2('lenaMom', 'She was wrong. You\'re a very good one now.', 'angry')] },
+      { if: () => Game.state.flags.funeral === 'silent', do: lv => { lv.shake(5); Audio.play('punch'); }, say: [N('(She slaps him. It\'s not hard. It doesn\'t need to be.)'), S2('lenaMom', 'Get out of here. Don\'t you ever come to my house again.', 'angry')] },
+      { do: lv => { lv.named.mom.cine = 2300; } }, { wait: 1.2 },
+      { npc: { id: 'walter', x: 2080, look: 'walterHat', face: -1 } }, { walk: ['player', 1900, true] },
+      { say: [S2('walter', 'I parked out here. I didn\'t think it was my place.'), S2('jace', 'You didn\'t even know her.', 'angry'), S2('walter', 'No. But I know you. And I know grief makes men do expensive, sentimental things.'), S2('walter', 'The Cortez brothers have been seen at the Crossroads Motel. That\'s something to do with your hands.')] },
+      { fade: 'out' }, { end: true },
+    ],
+  },
+  // ---------------------------------------------------------------- MORTY
+  stripmall: {
+    theme: 'town', width: 5200, start: 220, walter: true, music: 'tense', enemyLook: 'cartel', dark: 0.55,
+    build(L) {
+      L.car(560, '#c8c0a0', 'sedan', 1); L.fire(900, 40); L.crate(1100, 70, 60, 'cardboard'); L.plat(1350, GROUND - 130, 240); L.barrel(1700, 'red');
+      L.car(2000, '#7a2a2a', 'pickup', -1); L.fire(2350, 40); L.crate(2600, 64, 64, 'metal'); L.plat(2900, GROUND - 140, 260); L.barrel(3200, 'propane');
+      L.car(3500, '#2a3a5a', 'sedan', 1); L.crate(3900, 70, 60, 'cardboard'); L.fire(4100, 30); L.plat(4300, GROUND - 130, 240); L.barrel(4650, 'red');
+      for (const x of [380, 1500, 2700, 3800, 4800]) L.lamp(x, 250, x !== 2700);
+      L.sign(300, 'PLAZA DEL SOL', '#e0a050'); L.sign(4500, 'GOODFELLOW & ASSOC. · LAW', '#9fe88a');
+    },
+    steps: [
+      { cine: true, title: 'MORTY', sub: 'CHAPTER' }, { wait: 1.2 }, { walk: ['player', 470, true] },
+      { say: [S2('jace', 'The whole strip mall\'s on fire. The nail salon. The donut place. Who torches a donut place?', 'worried'), S2('walter', 'People who are looking for us, and know our lawyer can find us.'), S2('jace', 'Morty\'s office is at the end. If they got him, they got everything. Our names. The camp.', 'worried'), S2('walter', 'Then let\'s go and see how loyal a man is when he bills by the hour.')] },
+      { cine: false, objective: 'Fight through the plaza to Morty\'s office', music: 'action', spawn: [{ t: 'gunner', x: 1200 }, { t: 'smg', x: 1450, y: GROUND - 130 }, { t: 'thug', x: 1000 }, { t: 'knifer', from: 'left' }] },
+      { banter: ['walter', 'Mind the burning cars. They do that thing.'] }, { clear: true }, { cp: true },
+      { reach: 1900, spawn: [{ t: 'shotgunner', x: 2500 }, { t: 'rifleman', x: 3000, y: GROUND - 140 }, { t: 'smg', x: 2700 }, { t: 'gunner', from: 'left' }] },
+      { clear: true }, { cp: true }, { banter: ['jace', 'They\'re carrying gas cans. They were gonna burn him alive.'] },
+      { reach: 3300, spawn: [{ t: 'smg', x: 4000 }, { t: 'rifleman', x: 4400, y: GROUND - 130 }, { t: 'shotgunner', x: 4200 }, { t: 'gunner', x: 3900 }, { t: 'knifer', from: 'left' }] },
+      { clear: true }, { cp: true },
+      { reach: 3900 }, { arena: [3700, 5200], cine: true, spawn: [{ t: 'gordo', id: 'gordo', x: 4700, name: 'El Gordo', alert: false }], do: lv => { lv.named.gordo.passive = true; lv.named.gordo.facing = -1; }, cam: 4400 },
+      { say: [S2('gordo', 'The cook and his little helper. Rafa was my cousin. The twins were my cousins.', 'angry'), S2('jace', 'Man, how many cousins do you guys HAVE?', 'worried'), S2('gordo', 'One less every time you show up. So now I take it personal.', 'angry'), S2('walter', 'Where is the lawyer?'), S2('gordo', 'In the dumpster. Alive. For now. Talks a lot, that one.', 'smile')] },
+      { cam: null, cine: false, do: lv => lv.hostile(['gordo']), boss: 'gordo', music: 'boss', objective: 'Kill El Gordo' },
+      { wait: 8 }, { spawn: [{ t: 'gunner', from: 'right' }, { t: 'thug', from: 'left' }] }, { wait: 12 }, { spawn: [{ t: 'smg', from: 'left' }] },
+      { until: lv => !lv.named.gordo.alive }, { boss: null, objective: '' }, { clear: true }, { wait: 1.2 },
+      { cine: true, npc: { id: 'morty', x: 5000, look: 'morty', face: -1 } }, { walk: ['morty', 4800, true] }, { walk: ['player', 4680, true] },
+      { say: [S2('morty', 'Fellas! My favourite clients! Do you have any idea what the inside of a dumpster smells like at ninety degrees?', 'worried'), S2('jace', 'Did you tell them anything?', 'angry'), S2('morty', 'I told them I\'d sue. Repeatedly. With citations. I think that\'s why they put the lid on.', 'smile'), S2('walter', 'Mr. Goodfellow. You\'re very good at making problems go away.')] },
+      { say: [S2('morty', 'I know a guy for everything. Tax guy. Bail guy. A guy who makes people disappear: new name, new town, new teeth.', 'smile'), S2('morty', 'He even does the dead ones. Death certificate, coroner, the whole paperwork. You\'d be amazed how many dead people are just... dead on paper.', 'smile'), S2('walter', 'Is that so. And this man takes... referrals?'), S2('morty', 'Cash only. Word of mouth. Why, you planning on dying, Professor?', 'smile'), S2('walter', 'Everyone is, Mr. Goodfellow. I like to plan ahead.'), N('(Walter writes something on the back of a receipt. Jace doesn\'t ask what.)')] },
+      { do: lv => { Game.state.money += 2500; Game.state.flags.mortyGuy = true; lv.toast('Morty pays his debts: +$2,500'); } }, { wait: 1 }, { fade: 'out' }, { end: true },
+    ],
+  },
+  // ---------------------------------------------------------------- THURSDAY (convoy heist on the RV roof)
+  convoy: {
+    theme: 'highway', width: 90000, start: 480, mode: 'highway', zoom: 1, noDecals: true, music: 'action', enemyLook: 'labguard', showCount: true,
+    steps: [
+      { cine: true, title: 'THURSDAY', sub: 'CHAPTER' }, { wait: 1.2 },
+      { say: [S2('walter', '(from the cab) Every Thursday Fenn moves his money from the casino strip to the Golden Hen. Two armoured trucks and an escort.'), S2('jace', 'And we\'re robbing it. From the roof. Again.', 'worried'), S2('walter', 'Money Fenn can\'t trace is the only kind that can buy what we need. Shoot the escorts. Then the drivers. Don\'t shoot the money.'), S2('jace', 'Don\'t shoot the money. Got it. Great plan. Love it.', 'worried')] },
+      { cine: false, objective: 'Take out Fenn\'s escort', do: lv => { for (let i = 0; i < 3; i++) lv.spawnVehicle('bike', { offset: -360 + i * 130 }); lv.spawnVehicle('bike', { offset: 520, from: 'right' }); } },
+      { clear: true }, { banter: ['walter', 'First truck, coming up behind us!'], do: lv => { lv.spawnVehicle('truck', { offset: -540, gunners: 3 }); lv.spawnVehicle('bike', { offset: -300 }); } },
+      { clear: true }, { cp: true }, { do: lv => { lv.toast('Truck one: +$3,000'); Game.state.money += 3000; } },
+      { banter: ['jace', 'More bikes! Up front AND behind!'], do: lv => { for (let i = 0; i < 3; i++) lv.spawnVehicle('bike', { offset: 460 + i * 110, from: 'right' }); for (let i = 0; i < 2; i++) lv.spawnVehicle('bike', { offset: -330 - i * 120 }); } },
+      { clear: true }, { cp: true }, { banter: ['walter', 'There it is. The second truck. Fenn\'s own men drive this one.'], do: lv => { lv.spawnVehicle('truck', { offset: 580, from: 'right', gunners: 3 }); lv.spawnVehicle('truck', { offset: -560, gunners: 2 }); } },
+      { clear: true }, { do: lv => { lv.spawnVehicle('bike', { offset: -320 }); lv.spawnVehicle('bike', { offset: -440 }); lv.spawnVehicle('bike', { offset: 500, from: 'right' }); } }, { clear: true }, { wait: 1 },
+      { cine: true, say: [S2('jace', 'We did it. We robbed Fenn. FENN. I want to throw up.', 'worried'), S2('walter', 'He\'ll know it was us by tonight.'), S2('jace', 'Then why are you smiling?', 'worried'), S2('walter', 'Because by tonight it won\'t matter.')] },
+      { do: lv => { Game.state.money += 6000; lv.toast('Truck two: +$6,000'); } }, { fade: 'out' }, { end: true },
+    ],
+  },
+  // ---------------------------------------------------------------- CHOP SHOP
+  chopshop: {
+    theme: 'junkyard', width: 5600, start: 260, music: 'tense', enemyLook: 'biker',
+    npcs: [{ id: 'h1', kind: 'gunner', team: 'npc', x: 120, look: 'hired', guns: ['smg'], face: 1 }, { id: 'h2', kind: 'gunner', team: 'npc', x: 60, look: 'hired', guns: ['shotgun'], face: 1 }, { id: 'h3', kind: 'gunner', team: 'npc', x: 180, look: 'hired', guns: ['rifle'], face: 1 }],
+    build(L) {
+      L.car(700, '#5a4a2a', 'pickup', 1); L.stack(1000, 'metal'); L.barrel(1250, 'red'); L.plat(1450, GROUND - 130, 260); L.crate(1800, 70, 64, 'container');
+      L.car(2100, '#3a3a3a', 'sedan', -1); L.barrel(2350, 'propane'); L.stack(2600, 'wood'); L.plat(2850, GROUND - 140, 240); L.crate(3200, 64, 64, 'metal');
+      L.car(3500, '#7a2a2a', 'pickup', 1); L.barrel(3800, 'red'); L.plat(4000, GROUND - 130, 260); L.stack(4400, 'metal'); L.barrel(4700, 'red');
+      L.sign(320, 'DUST DOGS AUTO · NO QUESTIONS', '#e8a050');
+    },
+    steps: [
+      { cine: true, title: 'CHOP SHOP', sub: 'CHAPTER' }, { wait: 1.2 }, { walk: ['player', 360, true] },
+      { say: [S2('hired', 'Twelve grand gets you three guys, kid. Not three heroes. Point us at somebody.'), S2('jace', 'The Dust Dogs strip stolen cars here. Rook runs it. Rook knows where Dutch keeps... his guests.', 'angry'), S2('hired', 'And this guest. He\'s the one who got your friend killed?'), S2('jace', 'He\'s the one who knows where my money is.', 'angry')] },
+      { cine: false, objective: 'Tear through the chop shop', music: 'action', do: lv => { for (const id of ['h1', 'h2', 'h3']) { const h = lv.named[id]; h.team = 'ally'; h.passive = false; h.invuln = true; h.maxHp = h.hp = 300; h.ai.state = 'alert'; } }, spawn: [{ t: 'gunner', x: 1300 }, { t: 'thug', x: 1100 }, { t: 'smg', x: 1550, y: GROUND - 130 }, { t: 'knifer', x: 1200 }] },
+      { clear: true }, { cp: true }, { banter: ['hired', 'Not bad, kid. You shoot like somebody\'s paying you.'] },
+      { reach: 1800, spawn: [{ t: 'shotgunner', x: 2500 }, { t: 'rifleman', x: 2950, y: GROUND - 140 }, { t: 'smg', x: 2700 }, { t: 'heavy', x: 3100 }, { t: 'thug', from: 'left' }] },
+      { clear: true }, { cp: true },
+      { reach: 3200, spawn: [{ t: 'rifleman', x: 4100, y: GROUND - 130 }, { t: 'smg', x: 3900 }, { t: 'shotgunner', x: 4200 }, { t: 'heavy', x: 4500 }, { t: 'knifer', from: 'left' }] },
+      { clear: true }, { cp: true },
+      { reach: 4300 }, { arena: [4100, 5600], cine: true, spawn: [{ t: 'rook', id: 'rook', x: 5100, name: 'Rook', alert: false }], do: lv => { lv.named.rook.passive = true; lv.named.rook.facing = -1; }, cam: 4800 },
+      { say: [S2('rook', 'The cook\'s little buddy. Dutch said you\'d come crawling. Said you\'d bring a crew of nobodies.', 'smile'), S2('jace', 'Where\'s Walter Black?', 'angry'), S2('rook', 'Ask my axe.', 'angry')] },
+      { cam: null, cine: false, do: lv => lv.hostile(['rook']), boss: 'rook', music: 'boss', objective: 'Bring Rook down' },
+      { wait: 10 }, { spawn: [{ t: 'gunner', from: 'right' }, { t: 'smg', from: 'left' }] }, { wait: 14 }, { spawn: [{ t: 'shotgunner', from: 'right' }] },
+      { until: lv => !lv.named.rook.alive }, { boss: null, objective: '' }, { clear: true }, { wait: 1.2 },
+      { cine: true, npc: { id: 'rookD', x: 0, look: 'rook', face: -1 }, do: lv => { const r = lv.named.rookD; r.x = lv.player.x + 150; r.downed = 999; } },
+      { say: [S2('rook', '(coughing) Okay... okay. Dutch\'s compound. Past Route 9. The cook shed behind the big barn.', 'worried'), S2('jace', 'Is he alive?', 'worried'), S2('rook', 'Dead men don\'t cook, kid. Dutch has him making blue around the clock. Old man keeps asking for a phone.', 'worried'), S2('rook', 'Keeps saying he needs to call his lawyer. Ha. Like a lawyer\'s gonna help him now.', 'smile'), N('(Jace thinks about a receipt with a phone number on the back. He doesn\'t know why.)')] },
+      { do: lv => { Game.state.money += 2000; lv.toast('Rook\'s cash box: +$2,000'); } }, { fade: 'out' }, { end: true },
+    ],
+  },
+});
+
+// ---------- splice the new chapters into the story ----------
+{
+  const at = t => CHAPTERS.findIndex(c => c.title === t);
+  const lena = CHAPTERS[at('Lena')]; lena.seq.push({ level: 'funeral' });
+  lena.after = 'Lena is buried. Her mother knows. The Cortez brothers, Rafa\'s cousins, are waiting at the Crossroads Motel on Route 9.';
+  const twins = CHAPTERS[at('The Twins')], twinsAfter = twins.after;
+  twins.after = 'Morty Goodfellow isn\'t answering his phone. Somebody set fire to the strip mall where he keeps his office.';
+  CHAPTERS.splice(at('The Twins') + 1, 0, { title: 'Morty', node: 'strip', seq: [{ level: 'stripmall' }], after: twinsAfter });
+  const ranch = CHAPTERS[at('Rancho Muerte')];
+  ranch.after = 'The cartel is finished. Before Walter moves on Fenn, he wants money Fenn can\'t trace: Fenn\'s armoured trucks run Route 9 every Thursday. The Silver Spur Strip is open for high-roller deals.';
+  CHAPTERS.splice(at('Rancho Muerte') + 1, 0, { title: 'Thursday', node: 'convoy', seq: [{ level: 'convoy' }], after: 'Fenn\'s money is in the RV. Now Walter wants Fenn himself.' });
+  const alone = CHAPTERS[at('Alone')], aloneAfter = alone.after;
+  alone.after = 'Your new crew is ready. Rook, Dutch\'s enforcer, runs the Dust Dogs chop shop off Route 9. Rook knows where Walter is.';
+  CHAPTERS.splice(at('Alone') + 1, 0, { title: 'Chop Shop', node: 'chop', seq: [{ level: 'chopshop' }], after: aloneAfter });
+}
+Object.assign(NODES, {
+  strip: { x: 560, y: 400, name: 'Plaza del Sol', sub: 'Morty\'s office is on fire', icon: 'story' },
+  convoy: { x: 1190, y: 250, name: 'Route 9 Overpass', sub: 'Fenn\'s Thursday convoy', icon: 'story' },
+  chop: { x: 1010, y: 650, name: 'Dust Dogs Auto', sub: 'Rook\'s chop shop', icon: 'story' },
+});
+ROADS.push(['streets', 'strip'], ['junk', 'convoy'], ['motel', 'chop']);
+DISTRICTS.casino.unlock = s => s.chapter >= CHAPTERS.findIndex(c => c.title === 'Rancho Muerte') + 1;
+
+// chapter numbers on every title card follow the chapter list
+{
+  const WORDS = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN', 'TWENTY'];
+  CHAPTERS.forEach((C, i) => { for (const it of C.seq) { const L = it.level && LEVELS[it.level]; if (!L) continue; const st = L.steps.find(s => s.title && s.sub && s.sub.startsWith('CHAPTER')); if (st) st.sub = 'CHAPTER ' + WORDS[i]; } });
 }
 
-// renumber the original chapters' title cards to match the longer story
-for (const [k, sub] of [['warehouse', 'CHAPTER FOUR'], ['highway1', 'CHAPTER FIVE'], ['motel', 'CHAPTER SEVEN'], ['goldenhen', 'CHAPTER EIGHT'], ['ranch', 'CHAPTER TEN'], ['highway2', 'CHAPTER FOURTEEN']]) { const st = LEVELS[k].steps.find(s => s.title); if (st) st.sub = sub; }
+// ---------- the ending: Walter "dies" (and nobody checks very carefully) ----------
+{
+  const cs = LEVELS.compound.steps;
+  const stay = cs.find(s => s.if && s.say && s.say.some(l => l[1] && l[1].includes('You stayed')));
+  if (stay) stay.say = [S2('walterHat', '...You stayed. After everything.', 'neutral'), S2('jace', 'Yeah. Somebody should.', 'worried'), S2('walterHat', 'You\'re a better man than me, Jace. That was never... very hard.'), S2('walterHat', 'Call Goodfellow. Tell him... tell him the Professor\'s ready to plan ahead.'), N('(Walter Black\'s eyes close. Jace holds his hand until the paramedics pull him away.)'), N('(He never sees them check for a pulse. He never notices the ambulance doesn\'t turn on its siren.)')];
+  const leave = cs.find(s => s.if && s.say && s.say.some(l => l[1] && l[1].includes('That\'s what I would have done')));
+  if (leave) leave.say = [S2('walterHat', 'Jace? ...Jace!', 'worried'), S2('walterHat', '...Good. Good. That\'s what I would have done.'), N('(In the mirror, the compound gets smaller until it isn\'t there. Jace doesn\'t look back.)'), N('(Behind him, an old man in a hat reaches into his pocket for a receipt with a phone number on it.)')];
+}
 
 /* ===== js/jobs.js ===== */
 'use strict';
@@ -4466,6 +4694,323 @@ class JobScene {
   }
 }
 
+/* ===== js/run.js ===== */
+'use strict';
+// ============================================================
+//  FIXING GOOD - BLUE SKY RUN: an endless roguelite mode.
+//  Generated nights, contracts with modifiers, perks between nights,
+//  boss nights, permadeath, high scores and a daily seed.
+// ============================================================
+const RUN_DEMO_NIGHTS = 3;
+const RUN_PERKS = [
+  { k: 'vital', name: 'Thick Skin', desc: '+25 max health', max: 4, col: '#e05a4a' },
+  { k: 'tough', name: 'Kevlar Lining', desc: 'Take 12% less damage', max: 3, col: '#8aa0c0' },
+  { k: 'power', name: 'Hot Loads', desc: '+15% gun damage', max: 4, col: '#ffb040' },
+  { k: 'quick', name: 'Speed Loader', desc: 'Reload 15% faster', max: 3, col: '#9fe88a' },
+  { k: 'vamp', name: 'Bloodlust', desc: 'Every kill heals 8 more HP', max: 3, col: '#c02030' },
+  { k: 'greed', name: 'Sticky Fingers', desc: '+50% cash from pickups and contracts', max: 3, col: '#8fe07a' },
+  { k: 'fleet', name: 'Running Shoes', desc: 'Move 10% faster', max: 3, col: '#70c0f0' },
+  { k: 'volatile', name: 'Volatile', desc: '20% chance enemies explode when they die (it won\'t hurt you)', max: 2, col: '#ff7030' },
+  { k: 'head', name: 'Marksman', desc: 'Headshots deal 40% more damage', max: 2, col: '#e8e0c0' },
+  { k: 'hollow', name: 'Hollow Points', desc: '+20% damage on every gun', max: 1, col: '#d0a060', apply: s => { s.upgrades.hollow = true; } },
+  { k: 'fists', name: 'Brass Knuckles', desc: '+50% melee damage', max: 1, col: '#c0b080', apply: s => { s.upgrades.fists = true; } },
+  { k: 'dragon', name: 'Dragon\'s Breath', desc: 'Incendiary shotgun shells. Comes with a 12ga pump.', max: 1, col: '#ff5020', apply: s => { s.upgrades.dragon = true; runGive(s, 'shotgun'); } },
+  { k: 'crystals', name: 'Walter\'s Recipe', desc: '+3 Bang Crystals (G)', max: 9, col: '#7fd8f0', apply: s => { s.bangs += 3; } },
+  { k: 'molotov', name: 'Cocktail Hour', desc: '+3 Molotovs (V)', max: 9, col: '#ff9040', apply: s => { s.molotovs += 3; } },
+  { k: 'plates', name: 'Plate Carrier', desc: '+100 armour', max: 9, col: '#a0a8b0', apply: s => { s.armor = Math.min(300, s.armor + 100); } },
+  { k: 'medic', name: 'Field Medic', desc: '+2 medkits (H)', max: 9, col: '#f0f0f0', apply: s => { s.medkits += 2; } },
+  { k: 'resupply', name: 'Resupply', desc: 'Fill every ammo type to the brim', max: 99, col: '#d8c890', apply: s => { runFillAmmo(s); } },
+  { k: 'g_revolver', name: '.357 Magnum', desc: 'A revolver and 36 rounds', max: 1, col: '#c0c0c0', gun: 'revolver' },
+  { k: 'g_smg', name: 'Uzi-9', desc: 'An SMG and 160 rounds of 9mm', max: 1, col: '#c0c0c0', gun: 'smg' },
+  { k: 'g_rifle', name: 'AKM Rifle', desc: 'A rifle and 180 rounds of 7.62', max: 1, col: '#c0c0c0', gun: 'rifle', night: 3 },
+  { k: 'g_mg', name: 'M60 "Trunk Gun"', desc: 'Belt-fed. 300 rounds of 7.62', max: 1, col: '#c0c0c0', gun: 'mg', night: 6 },
+];
+const RUN_AMMO = { pistol: ['9mm', 90], revolver: ['357', 36], shotgun: ['12ga', 40], smg: ['9mm', 160], rifle: ['762', 180], mg: ['762', 300] };
+function runGive(s, gun) { if (!s.weapons.includes(gun)) s.weapons.push(gun); const [t, n] = RUN_AMMO[gun]; s.ammo[t] = (s.ammo[t] || 0) + n; }
+function runFillAmmo(s) { const cap = { '9mm': 360, '357': 60, '12ga': 72, '762': 420 }; for (const g of s.weapons) { const a = RUN_AMMO[g]; if (a) s.ammo[a[0]] = Math.max(s.ammo[a[0]] || 0, cap[a[0]]); } }
+
+const RUN_MODS = [
+  { k: 'blackout', name: 'BLACKOUT', desc: 'Lights out. Flashlight only.', pay: 1.25 },
+  { k: 'bloodbath', name: 'BLOODBATH', desc: '50% more enemies', pay: 1.5 },
+  { k: 'tough', name: 'TOUGH CROWD', desc: 'Enemies have 40% more health', pay: 1.4 },
+  { k: 'walter', name: 'WALTER RIDES ALONG', desc: 'Walter fights with you', pay: 0.8 },
+  { k: 'ambush', name: 'PINCER', desc: 'They come from behind too', pay: 1.3 },
+  { k: 'powder', name: 'POWDER KEG', desc: 'Explosive barrels everywhere', pay: 1.1 },
+  { k: 'payday', name: 'PAYDAY', desc: 'Double pay, double trouble', pay: 2.0 },
+];
+const RUN_BOSSES = [
+  { t: 'spider', name: 'Spider', look: 'spider' }, { t: 'rafa', name: 'Rafa "Loco" Vargas' }, { t: 'marco', name: 'Marco Cortez' }, { t: 'leo', name: 'Leo Cortez' },
+  { t: 'gordo', name: 'El Gordo' }, { t: 'gideon', name: 'Gideon' }, { t: 'esteban', name: 'Don Esteban' }, { t: 'rook', name: 'Rook' }, { t: 'fenn', name: 'Augusto Fenn' }, { t: 'dutch', name: 'Uncle Dutch' },
+];
+const RUN_PLACES = [
+  { name: 'the old drive-in', theme: 'dusk', look: 'thug' }, { name: 'Sandoval\'s scrapyard', theme: 'junkyard', look: 'thug' }, { name: 'a trailer park', theme: 'night', look: 'biker' },
+  { name: 'the Crossroads Motel', theme: 'motel', look: 'biker' }, { name: 'a cartel stash house', theme: 'ranch', look: 'cartel' }, { name: 'a storage depot', theme: 'warehouse', look: 'guard' },
+  { name: 'a chop shop', theme: 'compound', look: 'biker' }, { name: 'the dry riverbed', theme: 'day', look: 'thug' }, { name: 'the Southside projects', theme: 'southside', look: 'thug' },
+  { name: 'a superlab', theme: 'lab', look: 'labguard' }, { name: 'Main Street', theme: 'town', look: 'cartel' },
+];
+
+const Run = {
+  today() { const d = new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); },
+  start(daily) {
+    const seed = daily ? this.today() * 7 + 13 : Math.floor(Math.random() * 1e9);
+    const s = Game.newState();
+    Object.assign(s, { chapter: 3, money: 300, medkits: 1, armor: 0, bangs: 1, molotovs: 1, weapons: ['pistol'], ammo: { '9mm': 150, '357': 0, '12ga': 0, '762': 0 }, perks: {}, walterBangs: true,
+      run: { seed, daily, night: 1, cleared: 0, kills0: 0, earned: 0, rerolls: 0 } });
+    Game.state = s; Game.cheatGod = DEV.has('god');
+    Game.setScene(new RunScene('contract'));
+  },
+  rng(salt) { const r = Game.state.run; return srand(r.seed + r.night * 7919 + salt * 104729 + r.rerolls * 31); },
+  isBossNight() { return Game.state.run.night % 4 === 0; },
+  contracts() {
+    const run = Game.state.run, r = this.rng(1), n = run.night, out = [];
+    const types = ['turf', 'bounty', 'hold'].concat(n >= 2 ? ['highway'] : []).sort(() => r() - 0.5);
+    const usedPlaces = [];
+    for (let i = 0; i < 3; i++) {
+      let type = this.isBossNight() ? 'boss' : types[i % types.length];
+      let place = type === 'highway' ? { name: 'Route 9', theme: 'highway', look: 'biker' } : RUN_PLACES[Math.floor(r() * RUN_PLACES.length)];
+      for (let k = 0; k < 6 && usedPlaces.includes(place); k++) place = RUN_PLACES[Math.floor(r() * RUN_PLACES.length)];
+      usedPlaces.push(place);
+      const nm = i === 2 ? Math.min(2, 1 + Math.floor(r() * (1 + n / 4))) : Math.min(2, Math.floor(r() * (1 + n / 3)));
+      const mods = []; const pool = RUN_MODS.filter(m => !(type === 'highway' && ['blackout', 'walter', 'ambush', 'powder', 'tough'].includes(m.k)));
+      while (mods.length < nm) { const m = pool[Math.floor(r() * pool.length)]; if (!mods.includes(m)) mods.push(m); }
+      let boss = (type === 'boss' || type === 'bounty') ? RUN_BOSSES[Math.floor(r() * Math.min(RUN_BOSSES.length, 3 + n))] : null;
+      for (let k = 0; k < 6 && boss && out.some(o => o.boss === boss); k++) boss = RUN_BOSSES[Math.floor(r() * Math.min(RUN_BOSSES.length, 3 + n))];
+      const base = 450 + n * 220 + (type === 'boss' ? 1200 : type === 'bounty' ? 300 : 0);
+      const pay = Math.round(base * mods.reduce((a, m) => a * m.pay, 1) / 10) * 10;
+      const title = type === 'boss' ? 'Kill ' + boss.name : type === 'bounty' ? 'Bounty: ' + boss.name : type === 'hold' ? 'Hold ' + place.name : type === 'highway' ? 'Convoy run on Route 9' : 'Turf war at ' + place.name;
+      const desc = type === 'boss' ? `${boss.name} is back, or someone wearing his face. Either way, he wants you dead.` : type === 'bounty' ? `${boss.name} is holed up at ${place.name} with a crew.` : type === 'hold' ? `Keep the stash at ${place.name}. Waves of them, from both sides.` : type === 'highway' ? 'Ride the RV roof. Bikes and trucks, all the way to the state line.' : `Clear a rival crew out of ${place.name}.`;
+      out.push({ seed: Math.floor(r() * 1e9), type, place, mods, boss, pay, title, desc, diff: type === 'boss' ? 3 : type === 'hold' || mods.length > 1 ? 2 : 1 });
+    }
+    return out;
+  },
+  play(ct) { Game.state.run.kills0 = Game.state.stats.kills; Game.setScene(new LevelScene(null, () => this.cleared(ct), { def: makeRunLevel(ct), run: true })); },
+  cleared(ct) {
+    const s = Game.state, run = s.run;
+    const pay = Math.round(ct.pay * (1 + 0.5 * perk('greed')));
+    s.money += pay; run.earned += pay; run.cleared++; run.lastPay = pay; run.night++;
+    if (DEMO && run.cleared >= RUN_DEMO_NIGHTS) return this.over(true);
+    Game.setScene(new RunScene('perk'));
+  },
+  score(s) { const r = s.run; return r.cleared * 1000 + s.stats.kills * 20 + s.stats.heads * 30 + Math.floor(r.earned / 10); },
+  over(demoDone) {
+    const s = Game.state, sc = this.score(s), best = load('runbest') || { score: 0, night: 0 };
+    const rec = { score: sc, nights: s.run.cleared, kills: s.stats.kills, heads: s.stats.heads, earned: s.run.earned, perks: Object.assign({}, s.perks), daily: s.run.daily, seed: s.run.seed };
+    rec.newBest = sc > best.score; if (rec.newBest) store('runbest', { score: sc, night: s.run.cleared });
+    if (s.run.daily) { const k = 'rundaily' + this.today(), db = load(k) || 0; if (sc > db) store(k, sc); rec.dailyBest = Math.max(sc, db); }
+    rec.best = Math.max(sc, best.score); rec.demoDone = !!demoDone; rec.cause = demoDone ? null : (Game.level && Game.level.failReason) || null;
+    Game.cheatGod = false;
+    Game.setScene(new RunOverScene(rec));
+  },
+};
+
+// ---------------------------------------------------------------- level generator
+function makeRunLevel(ct) {
+  const r = srand(ct.seed), n = Game.state.run.night, has = k => ct.mods.some(m => m.k === k);
+  const hpMul = (1 + 0.08 * (n - 1)) * (has('tough') ? 1.4 : 1);
+  const cnt = k => Math.round(k * (has('bloodbath') ? 1.5 : 1) * (has('payday') ? 1.3 : 1));
+  const pool = ['thug', 'gunner', 'gunner', 'smg', 'knifer'].concat(n >= 2 ? ['shotgunner'] : [], n >= 3 ? ['rifleman', 'smg'] : [], n >= 4 ? ['rifleman'] : [], n >= 5 ? ['heavy'] : [], n >= 8 ? ['heavy', 'shotgunner'] : []);
+  const pick = () => pool[Math.floor(r() * pool.length)];
+  const sp = (t, extra) => Object.assign({ t, hp: Math.round((ARCH[t] ? ARCH[t].hp : 80) * hpMul) }, extra);
+  const intro = [{ cine: true, title: ct.title.toUpperCase(), sub: 'NIGHT ' + n + (ct.mods.length ? '  ·  ' + ct.mods.map(m => m.name).join(' · ') : '') + '  ·  BLUE SKY RUN' }, { wait: 1.4 }];
+  const outro = [{ objective: '', do: lv => lv.toast('CONTRACT DONE  +' + fmtMoney(Math.round(ct.pay * (1 + 0.5 * perk('greed'))))) }, { wait: 1.6 }, { fade: 'out' }, { end: true }];
+  // ---- highway: the RV roof
+  if (ct.type === 'highway') {
+    const steps = intro.concat([{ cine: false, objective: 'Survive the convoy run' }]);
+    const waves = 3 + Math.floor(n / 3);
+    for (let w = 0; w < waves; w++) {
+      const bikes = cnt(2 + Math.floor(n / 2) + (r() < 0.5 ? 1 : 0)), trucks = w >= 1 && r() < 0.4 + n * 0.05 ? 1 + (n >= 7 && r() < 0.5 ? 1 : 0) : 0;
+      steps.push({ do: lv => { for (let i = 0; i < bikes; i++) { const front = (has('ambush') || i % 3 === 2) && r() < 0.6; lv.spawnVehicle('bike', front ? { offset: 440 + i * 100, from: 'right' } : { offset: -320 - i * 110 }); } for (let i = 0; i < trucks; i++) lv.spawnVehicle('truck', i % 2 ? { offset: 560, from: 'right', gunners: 2 + Math.floor(n / 4) } : { offset: -540, gunners: 2 + Math.floor(n / 4) }); } }, { clear: true });
+      if (w < waves - 1) steps.push({ do: lv => lv.toast('WAVE ' + (w + 1) + ' / ' + waves + ' CLEARED') }, { wait: 1.2 });
+    }
+    return { theme: 'highway', width: 90000, start: 480, mode: 'highway', zoom: 1, noDecals: true, music: 'action', enemyLook: 'biker', showCount: true, steps: steps.concat(outro) };
+  }
+  const night = has('blackout') || ['night', 'motel', 'warehouse'].includes(ct.place.theme);
+  const hold = ct.type === 'hold', width = hold ? 2600 : 3800 + Math.floor(r() * 1600);
+  const steps = intro.slice();
+  if (hold) {
+    const waves = 3 + Math.floor(n / 3);
+    steps.push({ cine: false, objective: 'Hold the stash: ' + waves + ' waves', arena: [0, width] });
+    for (let w = 0; w < waves; w++) {
+      const k = cnt(3 + Math.floor(n * 0.7) + w), spawn = [];
+      for (let i = 0; i < k; i++) spawn.push(sp(pick(), { from: i % 2 ? 'left' : 'right' }));
+      if (w === waves - 1 && n >= 3) spawn.push(sp('heavy', { from: 'right' }));
+      steps.push({ do: lv => lv.toast('WAVE ' + (w + 1) + ' / ' + waves), spawn }, { clear: true }, { wait: 1.5 });
+    }
+  } else {
+    steps.push({ cine: false, objective: ct.type === 'turf' ? 'Clear out the crew' : 'Find ' + (ct.boss ? ct.boss.name : 'the target') });
+    const waves = (ct.type === 'boss' ? 2 : 3) + Math.floor(n / 4);
+    for (let w = 0; w < waves; w++) {
+      const x = 500 + (w + 0.5) * (width - 1100) / waves, k = cnt(2 + Math.floor(n * 0.6) + (r() < 0.5 ? 1 : 0)), spawn = [];
+      for (let i = 0; i < k; i++) spawn.push(i === k - 1 && (has('ambush') || r() < 0.3) ? sp(pick(), { from: 'left' }) : sp(pick(), { x: x + 120 + r() * 420 }));
+      if (has('ambush')) spawn.push(sp(pick(), { from: 'left' }));
+      steps.push({ reach: x - 500 }, { spawn }, { clear: true });
+    }
+    if (ct.boss) {
+      const b = ct.boss, bhp = Math.round((ARCH[b.t] ? ARCH[b.t].hp : 600) * (0.7 + 0.08 * n) * (has('tough') ? 1.25 : 1));
+      steps.push({ reach: width - 1000 }, { arena: [width - 1500, width], spawn: [sp(b.t, { id: 'boss', x: width - 280, name: b.name, hp: bhp, boss: true }), sp(pick(), { x: width - 420 }), sp(pick(), { from: 'left' })], boss: 'boss', objective: 'Kill ' + b.name, music: 'boss' });
+      steps.push({ wait: 10 }, { spawn: [sp(pick(), { from: 'left' }), sp(pick(), { from: 'right' })] });
+      steps.push({ until: lv => !lv.named.boss.alive }, { boss: null }, { clear: true });
+    }
+  }
+  return {
+    theme: ct.place.theme, width, start: hold ? width / 2 : 180, walter: has('walter'), music: 'action', enemyLook: ct.place.look,
+    dark: night ? (has('blackout') ? 0.82 : 0.6) : undefined, flashlight: has('blackout'),
+    build(L) {
+      let x = hold ? 260 : 560;
+      while (x < width - 260) {
+        if (hold && Math.abs(x - width / 2) < 160) { x += 200; continue; }
+        const k = r();
+        if (has('powder') && r() < 0.5) L.barrel(x, r() < 0.6 ? 'red' : 'propane');
+        else if (k < 0.24) L.crate(x, 64, 56 + Math.floor(r() * 3) * 6, ['wood', 'metal', 'cardboard', 'sandbag'][Math.floor(r() * 4)]);
+        else if (k < 0.36) { L.car(x, ['#7a2a2a', '#2a3a5a', '#4a4a3a', '#5a3a6a', '#c8c0a0'][Math.floor(r() * 5)], r() < 0.4 ? 'pickup' : 'sedan', r() < 0.5 ? 1 : -1); x += 200; }
+        else if (k < 0.5) L.barrel(x, r() < 0.7 ? 'red' : 'propane');
+        else if (k < 0.68) L.plat(x, GROUND - 125 - Math.floor(r() * 3) * 10, 200 + Math.floor(r() * 80));
+        else if (k < 0.8) L.stack(x, r() < 0.5 ? 'wood' : 'metal');
+        else if (!night) L.cactus(x, 80 + r() * 60);
+        if (night && r() < 0.5) L.lamp(x + 60, 250);
+        x += (hold ? 190 : 230) + r() * 240;
+      }
+      if (hold) L.crate(width / 2 - 40, 80, 40, 'wood');
+    },
+    steps: steps.concat(outro),
+  };
+}
+
+// ---------------------------------------------------------------- between nights: perks, Dusty's van, contracts
+class RunScene {
+  constructor(phase) {
+    this.phase = phase; this.t = 0;
+    if (phase === 'perk') this.rollPerks();
+    this.cts = Run.contracts();
+  }
+  enter() { Audio.music('hub'); Game.level = null; }
+  rollPerks() {
+    const s = Game.state, r = Run.rng(2 + (this.rolls || 0) * 17), n = s.run.night;
+    const ok = RUN_PERKS.filter(p => (s.perks[p.k] || 0) < p.max && (!p.night || n >= p.night) && !(p.gun && s.weapons.includes(p.gun)) && !(p.k === 'dragon' && s.upgrades.dragon));
+    const pickd = []; while (pickd.length < 3 && ok.length) pickd.push(ok.splice(Math.floor(r() * ok.length), 1)[0]);
+    this.perks = pickd;
+  }
+  takePerk(p) {
+    const s = Game.state; s.perks[p.k] = (s.perks[p.k] || 0) + 1;
+    if (p.gun) runGive(s, p.gun); if (p.apply) p.apply(s);
+    Audio.play('cash'); this.phase = 'contract'; this.t = 0;
+  }
+  update(dt) { this.t += dt; if (Input.hit('Escape')) this.confirmQuit = !this.confirmQuit; }
+  draw(c) {
+    const s = Game.state, run = s.run;
+    drawBackdrop(c, THEMES.night, this.t * 10); drawGround(c, THEMES.night, this.t * 10);
+    drawRV(c, 60, GROUND, { lit: true, dirty: true });
+    c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, 0, W, H);
+    UI.text(c, 'BLUE SKY RUN', 40, 56, 34, '#7fd8f0', 'left', true);
+    UI.text(c, (run.daily ? 'DAILY RUN · ' : '') + 'NIGHT ' + run.night + (DEMO ? '  ·  DEMO: ' + RUN_DEMO_NIGHTS + ' NIGHTS' : ''), 40, 84, 16, '#c8d8c0');
+    UI.text(c, 'SCORE ' + Run.score(s).toLocaleString(), W - 40, 56, 26, '#fff', 'right', true);
+    UI.text(c, 'CASH ' + fmtMoney(s.money) + '   ·   KILLS ' + s.stats.kills + '   ·   MEDKITS ' + s.medkits + '   ·   ARMOUR ' + Math.round(s.armor), W - 40, 84, 15, '#c8d8c0', 'right');
+    this.drawLoadout(c);
+    if (this.phase === 'perk') this.drawPerks(c); else this.drawContracts(c);
+    if (this.confirmQuit) {
+      c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(0, 0, W, H); UI.panel(c, W / 2 - 240, 250, 480, 200, 0.97);
+      UI.text(c, 'End this run?', W / 2, 310, 28, '#fff', 'center', true); UI.text(c, 'Your score is recorded.', W / 2, 340, 15, '#bbb', 'center');
+      if (UI.btn(c, W / 2 - 220, 370, 200, 50, 'END RUN')) { this.confirmQuit = false; Run.over(); }
+      if (UI.btn(c, W / 2 + 20, 370, 200, 50, 'KEEP GOING')) this.confirmQuit = false;
+    } else if (UI.btn(c, W - 170, 104, 130, 34, 'END RUN', { size: 13 })) this.confirmQuit = true;
+    UI.cursor(c);
+  }
+  drawLoadout(c) {
+    const s = Game.state; let x = 40;
+    UI.text(c, 'GUNS', 40, 124, 12, '#888', 'left', true);
+    for (const g of s.weapons) { const d = WEAPONS[g]; UI.text(c, d.name + (d.ammo ? '  ' + (s.ammo[d.ammo] || 0) : ''), x, 144, 14, '#e8e0c8'); c.font = `14px ${FONT}`; x += c.measureText(d.name + (d.ammo ? '  ' + (s.ammo[d.ammo] || 0) : '')).width + 24; }
+    const ks = Object.keys(s.perks); x = 40;
+    UI.text(c, 'PERKS', 40, 172, 12, '#888', 'left', true);
+    if (!ks.length) UI.text(c, 'none yet', 40, 192, 14, '#777');
+    for (const k of ks) { const p = RUN_PERKS.find(q => q.k === k); if (!p || p.gun) continue; const l = p.name + (s.perks[k] > 1 ? ' ×' + s.perks[k] : ''); UI.text(c, l, x, 192, 14, p.col); c.font = `14px ${FONT}`; x += c.measureText(l).width + 20; if (x > W - 200) break; }
+  }
+  drawPerks(c) {
+    const s = Game.state;
+    UI.text(c, 'NIGHT ' + (s.run.night - 1) + ' SURVIVED   +' + fmtMoney(s.run.lastPay || 0), W / 2, 250, 30, '#9fe88a', 'center', true);
+    UI.text(c, 'Pick one', W / 2, 280, 16, '#ccc', 'center');
+    this.perks.forEach((p, i) => {
+      const x = W / 2 - 480 + i * 330, y = 300, w = 300, h = 190;
+      UI.panel(c, x, y, w, h, 0.92); c.fillStyle = p.col; c.fillRect(x, y, 6, h);
+      UI.text(c, p.name.toUpperCase(), x + 24, y + 44, 22, p.col, 'left', true);
+      const lvl = s.perks[p.k] || 0; if (p.max > 1 && p.max < 9) UI.text(c, 'LV ' + (lvl + 1) + ' / ' + p.max, x + w - 20, y + 44, 13, '#aaa', 'right');
+      c.font = `15px ${FONT}`; c.fillStyle = '#ddd'; wrapText(c, p.desc, x + 24, y + 78, w - 44, 20);
+      if (UI.btn(c, x + 24, y + h - 60, w - 48, 42, 'TAKE IT', { size: 15 })) this.takePerk(p);
+    });
+    const cost = 150 + 100 * (this.rolls || 0);
+    if (UI.btn(c, W / 2 - 110, 506, 220, 40, 'REROLL  ' + fmtMoney(cost), { size: 14, disabled: s.money < cost }) && s.money >= cost) { s.money -= cost; this.rolls = (this.rolls || 0) + 1; this.rollPerks(); }
+    // Dusty's van
+    UI.text(c, 'DUSTY\'S VAN', W / 2 - 480, 588, 16, '#ffd060', 'left', true);
+    const items = [['Ammo top-up', 250, () => runFillAmmo(s)], ['Medkit', 300, () => s.medkits++], ['Armour +50', 300, () => { s.armor = Math.min(300, s.armor + 50); }], ['Bang Crystal', 200, () => s.bangs++], ['Molotov', 150, () => s.molotovs++]];
+    items.forEach(([l, p, f], i) => { if (UI.btn(c, W / 2 - 480 + i * 196, 600, 180, 56, l, { sub: fmtMoney(p), size: 14, disabled: s.money < p }) && s.money >= p) { s.money -= p; f(); Audio.play('cash'); } });
+  }
+  drawContracts(c) {
+    const s = Game.state;
+    UI.text(c, Run.isBossNight() ? 'BOSS NIGHT' : 'CHOOSE TONIGHT\'S CONTRACT', W / 2, 250, 30, Run.isBossNight() ? '#ff6050' : '#fff', 'center', true);
+    UI.text(c, 'Die and the run is over. No checkpoints. No second chances.', W / 2, 280, 15, '#c8a090', 'center');
+    this.cts.forEach((ct, i) => {
+      const x = W / 2 - 480 + i * 330, y = 300, w = 300, h = 330;
+      UI.panel(c, x, y, w, h, 0.92);
+      UI.text(c, ct.type.toUpperCase(), x + 24, y + 34, 13, ct.type === 'boss' ? '#ff6050' : '#7fd8f0', 'left', true);
+      UI.text(c, '★'.repeat(ct.diff) + '☆'.repeat(3 - ct.diff), x + w - 20, y + 34, 15, '#ffd060', 'right');
+      c.font = `bold 20px ${FONT}`; c.fillStyle = '#fff'; wrapText(c, ct.title, x + 24, y + 66, w - 44, 24);
+      c.font = `14px ${FONT}`; c.fillStyle = '#bbb'; wrapText(c, ct.desc, x + 24, y + 122, w - 44, 19);
+      ct.mods.forEach((m, j) => { UI.text(c, m.name, x + 24, y + 182 + j * 38, 14, '#ff9a60', 'left', true); UI.text(c, m.desc, x + 24, y + 199 + j * 38, 12, '#c8b8a8'); });
+      UI.text(c, fmtMoney(Math.round(ct.pay * (1 + 0.5 * perk('greed')))), x + 24, y + h - 72, 24, '#8fe07a', 'left', true);
+      if (UI.btn(c, x + 24, y + h - 56, w - 48, 42, 'TAKE THE CONTRACT', { size: 15 })) Run.play(ct);
+    });
+  }
+}
+
+class RunOverScene {
+  constructor(rec) { this.r = rec; this.t = 0; }
+  enter() { Audio.music('menu'); }
+  update(dt) { this.t += dt; }
+  draw(c) {
+    const r = this.r;
+    drawBackdrop(c, THEMES.dusk, this.t * 8); drawGround(c, THEMES.dusk, this.t * 8);
+    c.fillStyle = 'rgba(0,0,0,.65)'; c.fillRect(0, 0, W, H);
+    UI.text(c, r.demoDone ? 'DEMO RUN COMPLETE' : 'RUN OVER', W / 2, 130, 64, r.demoDone ? '#9fe88a' : '#ff5a4a', 'center', true);
+    UI.text(c, r.demoDone ? 'The full game has endless nights, boss nights every fourth night, and a daily run.' : (r.cause || '"You got greedy, Jace. Greed is a chemical reaction too." — Walter'), W / 2, 170, 17, '#ddd', 'center');
+    const rows = [['Nights survived', r.nights], ['Kills', r.kills], ['Headshots', r.heads], ['Cash earned', fmtMoney(r.earned)], ['SCORE', r.score.toLocaleString()], [r.daily ? 'Today\'s best' : 'Best ever', (r.daily ? r.dailyBest : r.best).toLocaleString()]];
+    rows.forEach(([k, v], i) => { if (this.t < 0.3 + i * 0.2) return; const big = k === 'SCORE'; UI.text(c, k, W / 2 - 200, 240 + i * 42, big ? 26 : 20, big ? '#fff' : '#bbb', 'left', big); UI.text(c, String(v), W / 2 + 200, 240 + i * 42, big ? 26 : 20, big ? '#7fd8f0' : '#fff', 'right', true); });
+    if (r.newBest && this.t > 1.6) { c.save(); c.shadowColor = '#7fd8f0'; c.shadowBlur = 16; UI.text(c, 'NEW BEST!', W / 2 + 230, 408, 22, '#7fd8f0', 'left', true); c.restore(); }
+    if (this.t > 1.4) {
+      if (UI.btn(c, W / 2 - 330, 540, 210, 54, 'RUN IT BACK')) Run.start(false);
+      if (!DEMO && UI.btn(c, W / 2 - 105, 540, 210, 54, 'DAILY RUN')) Run.start(true);
+      if (UI.btn(c, W / 2 + 120, 540, 210, 54, 'MAIN MENU')) { Game.state = null; Game.setScene(new MenuScene()); }
+    }
+    UI.text(c, 'Seed ' + r.seed, W - 16, H - 14, 12, '#666', 'right');
+    UI.cursor(c);
+  }
+}
+
+// ---------------------------------------------------------------- DEMO: the end-of-demo screen
+const DEMO_CHAPTERS = 3;
+class DemoEndScene {
+  constructor() { this.t = 0; }
+  enter() { Audio.music('menu'); Game.save(); }
+  update(dt) { this.t += dt; }
+  draw(c) {
+    drawBackdrop(c, THEMES.dusk, this.t * 10); drawGround(c, THEMES.dusk, this.t * 10);
+    drawRV(c, 760, GROUND, { lit: true, dirty: true });
+    c.fillStyle = 'rgba(0,0,0,.62)'; c.fillRect(0, 0, W, H);
+    drawLogo(c, 70, 50, 0.7, 0.3);
+    UI.text(c, 'THANKS FOR PLAYING THE DEMO', 74, 250, 34, '#9fe88a', 'left', true);
+    const lines = ['Southside is yours. Spider is watching. And Lena, Jace\'s best friend since third grade, is about to call.',
+      '', 'The full game has:', '•  17 story chapters, about two and a half hours, with choices and a post-credits scene',
+      '•  A cartel ranch, a superlab, a convoy heist on the RV roof, and a war with the Dust Dogs',
+      '•  All five dealing districts: University Row, the truck stop and the casino strip',
+      '•  Blue Sky Run without limits: endless nights, boss nights and a daily seed'];
+    lines.forEach((l, i) => UI.text(c, l, 74, 296 + i * 28, i === 2 ? 18 : 17, i === 2 ? '#fff' : '#ddd', 'left', i === 2));
+    if (this.t > 0.8) {
+      if (UI.btn(c, 74, 520, 260, 54, 'KEEP DEALING', { sub: 'Back to the map' })) Game.setScene(new HubScene());
+      if (UI.btn(c, 350, 520, 260, 54, 'BLUE SKY RUN', { sub: RUN_DEMO_NIGHTS + '-night demo run' })) Run.start(false);
+      if (UI.btn(c, 626, 520, 200, 54, 'MAIN MENU')) Game.setScene(new MenuScene());
+    }
+    UI.cursor(c);
+  }
+}
+
 /* ===== js/main.js ===== */
 'use strict';
 // ============================================================
@@ -4484,7 +5029,7 @@ const Game = {
   },
   diffMul() { return { easy: 0.5, normal: 0.85, hard: 1.3 }[this.state.difficulty] || 1; },
   hasSave() { return !!load('save'); },
-  save() { if (this.state) { store('save', this.state); } },
+  save() { if (this.state && !this.state.run) { store('save', this.state); } },
   loadSave() { const s = load('save'); if (s) { this.state = Object.assign(this.newState(), s); this.state.upgrades = s.upgrades || {}; return true; } return false; },
   saveMags(lv) { const p = lv.player; if (!p) return; for (const g of p.guns) this.state.mags[g.key] = g.mag; if (p.gun) this.state.lastGun = p.gun.key; },
   setScene(s) { if (this.scene && this.scene.exit) this.scene.exit(); this.scene = s; if (s.enter) s.enter(); },

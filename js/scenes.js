@@ -133,18 +133,32 @@ class MenuScene {
     drawLogo(c, 70, 60, 0.82, 0.25 + Math.sin(this.t * 1.5) * 0.1);
     UI.text(c, 'They fixed good. Then good fixed them.', 74, 290, 18, '#b8c8a8');
     if (!this.overlay) {
-      let y = 330;
-      if (this.hasSave) { if (UI.btn(c, 70, y, 300, 50, 'CONTINUE', { align: 'left', sub: '' })) { Game.loadSave(); if (Game.state.chapter === 0) Story.play(0); else Game.setScene(new HubScene()); } y += 60; }
-      if (UI.btn(c, 70, y, 300, 50, 'NEW GAME', { align: 'left' })) this.overlay = 'new'; y += 60;
-      if (UI.btn(c, 70, y, 300, 50, 'CONTROLS', { align: 'left' })) this.overlay = 'controls'; y += 60;
-      if (UI.btn(c, 70, y, 300, 50, 'SETTINGS', { align: 'left' })) this.overlay = 'settings'; y += 60;
-      if (UI.btn(c, 70, y, 300, 50, 'CREDITS', { align: 'left' })) this.overlay = 'credits';
+      let y = 318;
+      if (this.hasSave) { if (UI.btn(c, 70, y, 300, 50, 'CONTINUE', { align: 'left', sub: '' })) { Game.loadSave(); if (Game.state.chapter === 0) Story.play(0); else Game.setScene(new HubScene()); } y += 56; }
+      if (UI.btn(c, 70, y, 300, 48, 'NEW GAME', { align: 'left' })) this.overlay = 'new'; y += 56;
+      if (UI.btn(c, 70, y, 300, 48, 'BLUE SKY RUN', { align: 'left', hot: '#2a6a8a', border: 'rgba(127,216,240,.6)' })) this.overlay = 'run'; y += 56;
+      if (UI.btn(c, 70, y, 300, 48, 'CONTROLS', { align: 'left' })) this.overlay = 'controls'; y += 56;
+      if (UI.btn(c, 70, y, 300, 48, 'SETTINGS', { align: 'left' })) this.overlay = 'settings'; y += 56;
+      if (UI.btn(c, 70, y, 300, 48, 'CREDITS', { align: 'left' })) this.overlay = 'credits';
     } else if (this.overlay === 'settings') drawSettings(c, () => this.overlay = null);
     else if (this.overlay === 'controls') drawControls(c, () => this.overlay = null);
     else if (this.overlay === 'credits') {
       UI.panel(c, W / 2 - 300, 160, 600, 380, 0.95); UI.text(c, 'CREDITS', W / 2, 210, 30, '#fff', 'center', true);
       ['FIXING GOOD', 'An original parody action game', '', 'Design, code, art & sound: generated in code', 'Every sprite, sound and note is procedural.', 'No image or audio files were harmed.', '', 'Font: Oswald (SIL Open Font License)'].forEach((l, i) => UI.text(c, l, W / 2, 260 + i * 28, i === 0 ? 22 : 17, i === 0 ? '#9fe88a' : '#ddd', 'center', i === 0));
       if (UI.btn(c, W / 2 - 90, 480, 180, 44, 'BACK') || Input.hit('Escape')) this.overlay = null;
+    } else if (this.overlay === 'run') {
+      c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(0, 0, W, H); UI.panel(c, W / 2 - 320, 130, 640, 470, 0.96);
+      UI.text(c, 'BLUE SKY RUN', W / 2, 184, 36, '#7fd8f0', 'center', true);
+      UI.text(c, 'An endless roguelite. Every night: pick a contract, survive it, pick a perk.', W / 2, 216, 16, '#ddd', 'center');
+      UI.text(c, 'Generated levels, random modifiers, a boss every fourth night. One life.', W / 2, 238, 16, '#ddd', 'center');
+      const best = load('runbest'), daily = load('rundaily' + Run.today());
+      UI.text(c, best ? `Best: ${best.score.toLocaleString()} (${best.night} nights)` : 'No runs yet', W / 2, 272, 16, '#9fe88a', 'center', true);
+      if (UI.btn(c, W / 2 - 250, 300, 500, 62, 'NEW RUN', { sub: 'A fresh random seed' })) Run.start(false);
+      if (DEMO) UI.btn(c, W / 2 - 250, 374, 500, 62, 'DAILY RUN', { sub: 'Full game only', disabled: true });
+      else if (UI.btn(c, W / 2 - 250, 374, 500, 62, 'DAILY RUN', { sub: 'Same seed for everyone today' + (daily ? ' · your best today: ' + daily.toLocaleString() : '') })) Run.start(true);
+      if (DEMO) UI.text(c, 'Demo: runs end after ' + RUN_DEMO_NIGHTS + ' nights.', W / 2, 466, 15, '#e0a080', 'center');
+      UI.text(c, 'Doesn\'t touch your story save.', W / 2, 492, 14, '#999', 'center');
+      if (UI.btn(c, W / 2 - 70, 520, 140, 44, 'BACK', { size: 15 }) || Input.hit('Escape')) this.overlay = null;
     } else if (this.overlay === 'new') {
       UI.panel(c, W / 2 - 300, 170, 600, 360, 0.95); UI.text(c, 'NEW GAME', W / 2, 220, 30, '#fff', 'center', true);
       if (this.hasSave) UI.text(c, 'This will overwrite your saved game.', W / 2, 252, 15, '#e0a080', 'center');
@@ -154,7 +168,8 @@ class MenuScene {
       if (UI.btn(c, W / 2 - 250, 412, 500, 56, 'HARD', { sub: 'Every bullet is a lesson' })) start('hard');
       if (UI.btn(c, W / 2 - 70, 478, 140, 40, 'BACK', { size: 15 }) || Input.hit('Escape')) this.overlay = null;
     }
-    UI.text(c, 'v1.0 · Fixing Good', W - 16, H - 14, 12, '#666', 'right');
+    UI.text(c, DEMO ? 'DEMO · Fixing Good' : 'v1.1 · Fixing Good', W - 16, H - 14, 12, DEMO ? '#e0a080' : '#666', 'right');
+    if (DEMO) { c.save(); c.translate(372, 70); c.rotate(-0.12); UI.panel(c, 0, 0, 110, 40, 0.9); UI.text(c, 'DEMO', 55, 29, 26, '#ffd060', 'center', true); c.restore(); }
     UI.cursor(c);
   }
 }
@@ -165,6 +180,7 @@ function poseStatic(x, y, f, opt = {}) {
 // ---------------------------------------------------------------- STORY CONTROLLER
 const Story = {
   play(ch) {
+    if (DEMO && ch >= DEMO_CHAPTERS) { Game.setScene(new DemoEndScene()); return; }
     const C = CHAPTERS[ch]; if (!C) { Game.setScene(new EndingScene()); return; }
     this.ch = ch; this.seq = C.seq; this.i = -1; this.next();
   },
@@ -176,7 +192,7 @@ const Story = {
     else if (it.cook) Game.setScene(new CookScene({ tutorial: true, done: () => this.next() }));
     else if (it.ending) { Game.state.chapter = CHAPTERS.length; Game.state.flags.finished = true; Game.save(); Game.setScene(new EndingScene()); }
   },
-  finish() { Game.state.chapter = this.ch + 1; Game.save(); Game.setScene(new HubScene({ message: CHAPTERS[this.ch].after, title: 'CHAPTER COMPLETE: ' + CHAPTERS[this.ch].title.toUpperCase() })); },
+  finish() { Game.state.chapter = this.ch + 1; Game.save(); if (DEMO && this.ch + 1 >= DEMO_CHAPTERS) return Game.setScene(new DemoEndScene()); Game.setScene(new HubScene({ message: CHAPTERS[this.ch].after, title: 'CHAPTER COMPLETE: ' + CHAPTERS[this.ch].title.toUpperCase() })); },
 };
 
 // ---------------------------------------------------------------- LEVEL WRAPPER
@@ -216,6 +232,12 @@ class LevelScene {
     const lv = this.lv; lv.draw(c);
     if (lv.failed && lv.failT > 1.2) {
       c.fillStyle = `rgba(40,0,0,${Math.min(0.75, (lv.failT - 1.2) * 0.8)})`; c.fillRect(0, 0, W, H);
+      if (Game.state.run) {
+        UI.text(c, 'YOU DIED', W / 2, 270, 72, '#ff4a3a', 'center', true);
+        UI.text(c, 'Night ' + Game.state.run.night + ' of Blue Sky Run. No second chances.', W / 2, 320, 20, '#f0d0c0', 'center');
+        if (lv.failT > 2 && UI.btn(c, W / 2 - 160, 380, 320, 56, 'SEE RESULTS')) Run.over();
+        UI.cursor(c); return;
+      }
       UI.text(c, 'GAME OVER', W / 2, 270, 72, '#ff4a3a', 'center', true);
       UI.text(c, lv.failReason || choose0(['"Jace... we were so close." — Walter', '"Get up, Jace. Get UP." — Walter'], lv), W / 2, 320, 20, '#f0d0c0', 'center');
       if (lv.checkpoint && UI.btn(c, W / 2 - 160, 370, 320, 52, 'RETRY FROM CHECKPOINT')) this.retry(true);
@@ -231,11 +253,14 @@ class LevelScene {
       UI.text(c, 'PAUSED', W / 2, 200, 56, '#fff', 'center', true);
       let y = 250;
       if (UI.btn(c, W / 2 - 150, y, 300, 50, 'RESUME')) this.paused = false; y += 60;
-      if (lv.checkpoint && UI.btn(c, W / 2 - 150, y, 300, 50, 'RETRY CHECKPOINT')) this.retry(true); if (lv.checkpoint) y += 60;
-      if (UI.btn(c, W / 2 - 150, y, 300, 50, 'RESTART MISSION')) this.retry(false); y += 60;
+      if (!Game.state.run) {
+        if (lv.checkpoint && UI.btn(c, W / 2 - 150, y, 300, 50, 'RETRY CHECKPOINT')) this.retry(true); if (lv.checkpoint) y += 60;
+        if (UI.btn(c, W / 2 - 150, y, 300, 50, 'RESTART MISSION')) this.retry(false); y += 60;
+      }
       if (UI.btn(c, W / 2 - 150, y, 300, 50, 'CONTROLS')) this.overlay = 'controls'; y += 60;
       if (UI.btn(c, W / 2 - 150, y, 300, 50, 'SETTINGS')) this.overlay = 'settings'; y += 60;
-      if (UI.btn(c, W / 2 - 150, y, 300, 50, Game.state.chapter > 0 ? 'ABANDON (BACK TO MAP)' : 'QUIT TO MENU')) { Game.state = Object.assign(Game.newState(), JSON.parse(this.snapshot)); Game.save(); Game.setScene(Game.state.chapter > 0 ? new HubScene() : new MenuScene()); }
+      if (Game.state.run) { if (UI.btn(c, W / 2 - 150, y, 300, 50, 'ABANDON RUN')) { this.paused = false; Run.over(); } }
+      else if (UI.btn(c, W / 2 - 150, y, 300, 50, Game.state.chapter > 0 ? 'ABANDON (BACK TO MAP)' : 'QUIT TO MENU')) { Game.state = Object.assign(Game.newState(), JSON.parse(this.snapshot)); Game.save(); Game.setScene(Game.state.chapter > 0 ? new HubScene() : new MenuScene()); }
       UI.cursor(c);
     }
   }
@@ -676,29 +701,79 @@ class CookScene {
   }
 }
 
-// ---------------------------------------------------------------- ENDING + CREDITS
+// ---------------------------------------------------------------- ENDING + CREDITS + POST-CREDITS
 class EndingScene {
-  constructor() { this.t = 0; this.x = 0; this.theme = THEMES.dusk; this.epi = epilogueLines(); this.E = this.epi.length * 4 + 2; }
+  constructor() { this.t = 0; this.x = 0; this.theme = THEMES.dusk; this.C = 46; this.S = 22; this.smoke = []; }
   enter() { Audio.music('menu'); }
-  update(dt) { this.t += dt; this.x += dt * (this.t < this.E ? 120 : 900); if (this.t > this.E && Input.hit('Space') === false) {} if (this.t < this.E && (Input.hit('Space') || Input.mclick)) this.t = Math.ceil(this.t / 4) * 4; if (this.t > 46 + this.E || (this.t > 3 && Input.hit('Escape'))) { Game.setScene(new HubScene({ title: 'THE END', message: 'You finished Fixing Good. The desert is still out there: keep cooking, trading and fighting off the odd ambush for as long as you like.' })); } }
+  done() { Game.state.flags.sawStinger = true; Game.save(); Game.setScene(new HubScene({ title: 'THE END?', message: 'You finished Fixing Good. The desert is still out there: keep cooking, trading and fighting off the odd ambush for as long as you like. Or try BLUE SKY RUN from the main menu.' })); }
+  update(dt) {
+    this.t += dt; this.x += dt * 120;
+    const skip = Input.hit('Escape') || Input.hit('Enter');
+    if (this.t < this.C) { if (this.t > 3 && skip) this.t = this.C; return; }
+    const s = this.t - this.C;
+    if (s > 9 && Math.random() < 0.5) this.smoke.push({ x: 742 + rand(-4, 4), y: GROUND - 214, s: 6, life: 3.5, vx: rand(4, 18) });
+    for (const p of this.smoke) { p.life -= dt; p.y -= 28 * dt; p.x += p.vx * dt; p.s += dt * 10; }
+    this.smoke = this.smoke.filter(p => p.life > 0);
+    if (s > this.S || (s > 2 && skip)) this.done();
+  }
+  caption(c, l, y, a, size = 22, col = '#f2ece0') { c.globalAlpha = clamp(a, 0, 1); UI.text(c, l, W / 2, y, size, col, 'center', true); c.globalAlpha = 1; }
   draw(c) {
+    if (this.t >= this.C) return this.drawStinger(c, this.t - this.C);
     drawBackdrop(c, this.theme, this.x); drawGround(c, this.theme, this.x);
-    // Jace in the getaway car, screaming into the sunset
+    // Jace in the getaway car, driving into the sunset
     const bob = Math.sin(this.t * 16) * 1.5;
     drawCar(c, 470, GROUND + bob, 260, '#c0a040', 'sedan', 1);
     c.fillStyle = LOOKS.jace.skin; c.beginPath(); c.arc(640, GROUND - 74 + bob, 10, 0, TAU); c.fill(); c.fillStyle = LOOKS.jace.hatColor; c.beginPath(); c.arc(640, GROUND - 77 + bob, 10, PI, TAU); c.fill();
     c.fillStyle = 'rgba(0,0,0,' + Math.max(0, 1 - this.t / 2) + ')'; c.fillRect(0, 0, W, H);
     c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, 0, W, 100); c.fillRect(0, H - 100, W, 100);
-    if (this.t < this.E) {
-      c.fillStyle = 'rgba(0,0,0,.82)'; c.fillRect(0, 0, W, H);
-      UI.text(c, 'EPILOGUE', W / 2, 150, 18, '#9fe88a', 'center', true);
-      let ey = 210; this.epi.forEach((l, i) => { const a = clamp((this.t - 1 - i * 4) / 1.2, 0, 1); if (a <= 0) return; c.globalAlpha = a; c.font = `21px ${FONT}`; c.fillStyle = '#f2ece0'; c.textAlign = 'center'; const lines = []; let line = ''; for (const w of l.split(' ')) { const tst = line ? line + ' ' + w : w; if (c.measureText(tst).width > 900 && line) { lines.push(line); line = w; } else line = tst; } lines.push(line); lines.forEach((ln, j) => c.fillText(ln, W / 2, ey + j * 27)); ey += lines.length * 27 + 26; c.textAlign = 'left'; c.globalAlpha = 1; });
-      UI.text(c, 'Click to continue', W - 20, H - 30, 13, '#888', 'right'); return;
-    }
-    const t = this.t - this.E;
+    const t = this.t;
     if (t > 2 && t < 12) { c.globalAlpha = Math.min(1, (t - 2) / 1.5, (12 - t) / 1.5); drawLogo(c, W / 2 - 160, 120, 0.85, 0.4); c.globalAlpha = 1; }
-    const credits = ['FIXING GOOD', '', 'STARRING', 'Jace Pinkett', 'Walter Black', '', 'AND', 'Rafa "Loco" Vargas', 'The Cortez Twins', 'Augusto Fenn', 'Don Esteban', 'Uncle Dutch', 'Agent Hal Brewer', 'Morty Goodfellow, Esq.', 'Dusty', '', 'Every pixel, gunshot and note', 'was generated in code', '', 'STATS', 'Kills: ' + Game.state.stats.kills, 'Headshots: ' + Game.state.stats.heads, 'Batches cooked: ' + Game.state.stats.cooks, 'Best purity: ' + Game.state.stats.bestPurity.toFixed(1) + '%', 'Street earnings: ' + fmtMoney(Game.state.stats.earned), '', '', 'Thanks for playing.'];
+    const credits = ['FIXING GOOD', '', 'STARRING', 'Jace Pinkett', 'Walter Black', '', 'AND', 'Lena Alvarez', 'Nico', 'Rafa "Loco" Vargas', 'The Cortez Twins', 'El Gordo', 'Augusto Fenn', 'Don Esteban', 'Uncle Dutch', 'Rook', 'Agent Hal Brewer', 'Morty Goodfellow, Esq.', 'Dusty', '', 'Every pixel, gunshot and note', 'was generated in code', '', 'STATS', 'Kills: ' + Game.state.stats.kills, 'Headshots: ' + Game.state.stats.heads, 'Batches cooked: ' + Game.state.stats.cooks, 'Best purity: ' + Game.state.stats.bestPurity.toFixed(1) + '%', 'Street earnings: ' + fmtMoney(Game.state.stats.earned), '', 'Thanks for playing.', '', 'Stay for one more thing.'];
     if (t > 12) { const off = (t - 12) * 48; credits.forEach((l, i) => { const y = H + 20 + i * 40 - off; if (y < 90 || y > H - 80) return; UI.text(c, l, W / 2, y, l === l.toUpperCase() && l.length > 2 ? 26 : 22, l === l.toUpperCase() ? '#9fe88a' : '#fff', 'center', l === l.toUpperCase()); }); }
     UI.text(c, 'Esc to skip', W - 20, H - 30, 13, '#888', 'right');
+  }
+  drawStinger(c, s) {
+    const fadeIn = k => clamp(k, 0, 1);
+    if (s < 9) {
+      // the county morgue. Drawer fourteen is open, and empty.
+      const fl = s > 0.6 && s < 0.9 || s > 1.2 && s < 1.3 ? 0.35 : 1;
+      const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#16201f'); g.addColorStop(1, '#070b0b'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      const X0 = 300, Y0 = 130, DW = 170, DH = 120;
+      for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) {
+        const x = X0 + k * (DW + 10), y = Y0 + r * (DH + 10), open = r === 1 && k === 2;
+        c.fillStyle = open ? '#050707' : '#7d8a8a'; c.fillRect(x, y, DW, DH); c.strokeStyle = INK; c.lineWidth = 4; c.strokeRect(x, y, DW, DH);
+        if (!open) { c.fillStyle = '#b8c4c2'; c.fillRect(x + DW / 2 - 30, y + 54, 60, 10); c.fillStyle = '#e8e2c8'; c.fillRect(x + 14, y + 14, 46, 26); c.fillStyle = '#333'; c.font = `bold 13px ${FONT}`; c.fillText(String(r * 4 + k + 8), x + 24, y + 33); }
+      }
+      // pulled-out tray coming toward the camera
+      const ox = X0 + 2 * (DW + 10), oy = Y0 + DH + 10;
+      c.fillStyle = '#9aa6a6'; c.beginPath(); c.moveTo(ox, oy + DH); c.lineTo(ox + DW, oy + DH); c.lineTo(ox + DW + 70, oy + DH + 170); c.lineTo(ox - 70, oy + DH + 170); c.closePath(); c.fill(); c.strokeStyle = INK; c.lineWidth = 4; c.stroke();
+      c.fillStyle = '#eceae2'; c.beginPath(); c.moveTo(ox + 10, oy + DH + 60); c.quadraticCurveTo(ox + 80, oy + DH + 30, ox + 150, oy + DH + 80); c.quadraticCurveTo(ox + 200, oy + DH + 140, ox + 60, oy + DH + 150); c.quadraticCurveTo(ox - 30, oy + DH + 130, ox + 10, oy + DH + 60); c.fill(); c.stroke();
+      c.fillStyle = '#e8e2c8'; c.fillRect(ox + 14, Y0 + DH + 10 + 14, 46, 26); c.fillStyle = '#a02020'; c.font = `bold 13px ${FONT}`; c.fillText('14', ox + 24, Y0 + DH + 10 + 33);
+      // the toe tag on the floor
+      c.save(); c.translate(ox + 380, oy + DH + 150); c.rotate(-0.25); c.fillStyle = '#e8dcb0'; c.fillRect(-60, -22, 120, 44); c.strokeStyle = INK; c.lineWidth = 3; c.strokeRect(-60, -22, 120, 44); c.fillStyle = '#222'; c.font = `bold 14px ${FONT}`; c.textAlign = 'center'; c.fillText('BLACK, WALTER', 0, -2); c.font = `12px ${FONT}`; c.fillText('#0614 · DOA', 0, 15); c.textAlign = 'left'; c.restore();
+      c.fillStyle = `rgba(200,255,240,${0.06 * fl})`; c.fillRect(0, 0, W, H);
+      c.fillStyle = `rgba(0,0,0,${1 - fl * 0.9})`; c.fillRect(0, 0, W, H);
+      this.caption(c, 'COUNTY CORONER\'S OFFICE  ·  THREE WEEKS LATER', 70, fadeIn(s - 0.5), 22, '#9fe88a');
+      this.caption(c, '"Who signed out drawer fourteen?"', H - 120, fadeIn(s - 2.5) * fadeIn(8.6 - s));
+      this.caption(c, '"Nobody. Paperwork says he was cremated Tuesday. By a lawyer."', H - 84, fadeIn(s - 5) * fadeIn(8.6 - s), 20, '#c8d0c8');
+      c.fillStyle = `rgba(0,0,0,${clamp(1 - s * 2, 0, 1) + clamp((s - 8.4) * 2, 0, 1)})`; c.fillRect(0, 0, W, H);
+      return;
+    }
+    // somewhere south of the border: a shack, a blue glow, a man in a hat
+    const u = s - 9;
+    drawBackdrop(c, THEMES.night, 200 + u * 6); drawGround(c, THEMES.night, 200 + u * 6);
+    c.fillStyle = '#5a4a3e'; c.fillRect(560, GROUND - 200, 260, 200); c.strokeStyle = INK; c.lineWidth = 4; c.strokeRect(560, GROUND - 200, 260, 200);
+    c.fillStyle = '#4a3a30'; c.fillRect(732, GROUND - 240, 22, 40); c.strokeRect(732, GROUND - 240, 22, 40);
+    const glow = 0.75 + Math.sin(u * 3) * 0.08; c.fillStyle = `rgba(90,200,240,${glow})`; c.fillRect(600, GROUND - 150, 70, 56); c.strokeRect(600, GROUND - 150, 70, 56);
+    const gg = c.createRadialGradient(635, GROUND - 120, 10, 635, GROUND - 120, 260); gg.addColorStop(0, 'rgba(90,200,240,.35)'); gg.addColorStop(1, 'rgba(90,200,240,0)'); c.fillStyle = gg; c.fillRect(300, GROUND - 400, 700, 420);
+    for (const p of this.smoke) { c.fillStyle = `rgba(140,210,240,${0.16 * p.life / 3.5})`; c.beginPath(); c.arc(p.x, p.y, p.s, 0, TAU); c.fill(); }
+    const J = poseStatic(900, GROUND, -1); drawFigure(c, J, LOOKS.walterHat, -1, {});
+    // glasses glint
+    if (u > 5.5 && u < 6.3) { const k = 1 - Math.abs(u - 5.9) / 0.4; c.fillStyle = `rgba(255,255,255,${k})`; c.beginPath(); c.arc(886, GROUND - 82, 6 * k + 2, 0, TAU); c.fill(); }
+    c.fillStyle = 'rgba(0,0,0,.4)'; c.fillRect(0, 0, W, 90); c.fillRect(0, H - 110, W, 110);
+    this.caption(c, 'SOMEWHERE SOUTH OF THE BORDER', 60, fadeIn(u - 0.5), 22, '#9fe88a');
+    this.caption(c, '"Mr. Goodfellow. Tell your guy the new teeth are excellent."', H - 66, fadeIn(u - 2) * fadeIn(7.5 - u), 21);
+    if (u > 7.5) { c.fillStyle = `rgba(0,0,0,${fadeIn((u - 7.5) * 0.8) * 0.85})`; c.fillRect(0, 0, W, H); c.save(); c.shadowColor = '#3cff7a'; c.shadowBlur = 24; this.caption(c, 'WALTER BLACK WILL RETURN', H / 2, fadeIn(u - 8), 54, '#d8ffd8'); c.restore(); this.caption(c, 'FIXING GOOD WILL CONTINUE', H / 2 + 50, fadeIn(u - 9), 18, '#9fe88a'); }
+    c.fillStyle = `rgba(0,0,0,${clamp(1 - u * 2, 0, 1)})`; c.fillRect(0, 0, W, H);
   }
 }

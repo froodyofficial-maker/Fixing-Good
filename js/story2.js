@@ -244,20 +244,3 @@ DISTRICTS.campus.unlock = s => s.chapter >= 5;
 DISTRICTS.truck.unlock = s => s.chapter >= 7;
 DISTRICTS.casino.unlock = s => s.chapter >= 10;
 
-// ---------- epilogue text for the ending ----------
-function epilogueLines() {
-  const f = Game.state.flags, st = Game.state, L = [];
-  if (f.ending === 'leave') L.push('Jace drove until the gas ran out, somewhere past the state line, with four barrels of money and the radio off.', 'Walter Black died alone in the dirt outside Dutch\'s compound. The DEA found him the next morning, still wearing the hat.');
-  else L.push('Jace sat in the dirt with Walter until the sirens came. Walter didn\'t say anything else. Jace didn\'t ask him to.', 'When the DEA arrived, Jace was holding a dead man\'s hand and four barrels of money he never touched again.');
-  if (f.nico === 'executed') L.push('Jace still sees the stockyard when he closes his eyes. Nico\'s killer, on his knees, and the sound it made.');
-  else if (f.nico === 'spared') L.push('The man who killed Nico made it to Arizona. Fenn\'s people found him there a week later. Mercy bought him seven days.');
-  if (f.truth === 'hit') L.push('Jace broke two knuckles on Walter Black\'s face the night he learned the truth about Lena. They never healed right.');
-  else if (f.truth === 'walked') L.push('Jace never told anyone what Walter said about Lena. Some things you carry so nobody else has to.');
-  const crew = (st.dealers || []).filter(d => d.status === 'active').length;
-  L.push(crew ? `${crew} of Jace's dealers kept working the corners. Somebody always does.` : 'The corners filled back up within a month. Somebody always does.');
-  L.push(`Street earnings: ${fmtMoney(st.stats.earned)}. Bags sold: ${st.stats.bagsSold}. People killed: ${st.stats.kills}.`);
-  return L;
-}
-
-// renumber the original chapters' title cards to match the longer story
-for (const [k, sub] of [['warehouse', 'CHAPTER FOUR'], ['highway1', 'CHAPTER FIVE'], ['motel', 'CHAPTER SEVEN'], ['goldenhen', 'CHAPTER EIGHT'], ['ranch', 'CHAPTER TEN'], ['highway2', 'CHAPTER FOURTEEN']]) { const st = LEVELS[k].steps.find(s => s.title); if (st) st.sub = sub; }

@@ -55,8 +55,8 @@ class Level {
     if (!d.noPlayer) {
       const guns = d.unarmed ? [] : st.weapons.slice();
       const p = new Actor({ kind: 'player', team: 'player', x: startX, look: d.playerLook || 'jace', guns, armor: st.armor, id: 'player' });
-      p.maxHp = 100 + (st.upgrades.health ? 40 : 0); p.hp = p.maxHp;
-      p.reloadMul = st.upgrades.reload ? 0.72 : 1;
+      p.maxHp = 100 + (st.upgrades.health ? 40 : 0) + 25 * perk('vital'); p.hp = p.maxHp;
+      p.reloadMul = (st.upgrades.reload ? 0.72 : 1) * Math.pow(0.85, perk('quick'));
       // carry over magazine contents between levels
       p.guns.forEach(g => { if (st.mags[g.key] !== undefined) g.mag = st.mags[g.key]; });
       const gi = p.guns.findIndex(g => g.key === st.lastGun); if (gi >= 0) p.gi = gi;
@@ -166,7 +166,7 @@ class Level {
           this.bullets.splice(i, 1); continue;
         } else {
           const a = hit.a; b.hitSet.add(a);
-          const mul = hit.head ? (b.team === 'enemy' ? 1.4 : 2.6) : 1;
+          const mul = hit.head ? (b.team === 'enemy' ? 1.4 : 2.6 * (b.team === 'player' ? 1 + 0.4 * perk('head') : 1)) : 1;
           const close = b.shotgun && b.travelled < 200;
           const dmg = b.dmg * mul * (close ? 1.25 : 1);
           const killed = a.hurt(dmg, { kind: 'bullet', x: hx, y: hy, dx, dy, head: hit.head, knock: b.knock * (close ? 1.6 : 1), power: dmg, from: b.owner, shotgunClose: close, ignite: b.fire }, this);
@@ -201,6 +201,7 @@ class Level {
       if (a.team === 'player' && (!o.owner || o.owner.team !== 'enemy')) dm *= 0.35; // own throws + barrels hurt you far less
       if (a.id === 'walter') dm *= 0.3;
       if (a.passive) continue;
+      if (o.friendly && (a.team === 'player' || a.team === 'ally')) continue;
       const dx = (c[0] - x) / (d || 1), dy = (c[1] - y) / (d || 1) - 0.6;
       const killed = a.hurt(dm, { kind: 'blast', x: c[0], y: c[1], dx, dy, knock: 1100 * k, close: d < r * 0.55, ignite: o.fire }, this);
       if (!killed && a.alive) { a.vx += dx * 500 * k; a.vy = -380 * k; a.onGround = false; a.stagger = 0.5; }
@@ -245,7 +246,8 @@ class Level {
   onDeath(a, o) {
     if (a.team === 'enemy') {
       this.stats.kills++; Game.state.stats.kills++;
-      if (this.player && this.player.alive) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 6); // adrenaline
+      if (this.player && this.player.alive) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 6 + 8 * perk('vamp')); // adrenaline
+      if (perk('volatile') && Math.random() < 0.2 * perk('volatile')) { const ex = a.x, ey = a.y - 40; setTimeout(() => { if (Game.level === this) this.explode(ex, ey, { r: 150, dmg: 110, small: true, friendly: true }); }, 120); }
       if (o.from && o.from.id === 'walter' && Math.random() < 0.3) this.banter('walter', choose(['Got him.', 'That one\'s mine.', 'Applied science.', 'Stay behind cover, Jace!', 'Reloading— no. Still have rounds.']));
       if (this.player) {
         const st = Game.state, g = a.gun;
@@ -273,7 +275,7 @@ class Level {
       if (p && p.alive && Math.abs(p.x - k.x) < 40 && Math.abs(p.y - 30 - k.y) < 60) {
         const st = Game.state;
         if (k.kind === 'ammo') { st.ammo[k.type] = (st.ammo[k.type] || 0) + k.amount; this.toast('+' + k.amount + ' ' + AMMO_NAMES[k.type]); Audio.play('pickup'); }
-        else if (k.kind === 'cash') { st.money += k.amount; this.stats.cash += k.amount; this.toast('+' + fmtMoney(k.amount)); Audio.play('cash'); }
+        else if (k.kind === 'cash') { k.amount = Math.round(k.amount * (1 + 0.5 * perk('greed'))); st.money += k.amount; this.stats.cash += k.amount; this.toast('+' + fmtMoney(k.amount)); Audio.play('cash'); }
         else if (k.kind === 'med') {
           if (p.hp < p.maxHp * 0.6) { p.hp = Math.min(p.maxHp, p.hp + 45); this.toast('+45 HP'); this.healFlash = 0.6; }
           else if (st.medkits < 5) { st.medkits++; this.toast('+1 Medkit'); } else continue;

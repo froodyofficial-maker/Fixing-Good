@@ -15,7 +15,7 @@ const Game = {
   },
   diffMul() { return { easy: 0.5, normal: 0.85, hard: 1.3 }[this.state.difficulty] || 1; },
   hasSave() { return !!load('save'); },
-  save() { if (this.state) { store('save', this.state); } },
+  save() { if (this.state && !this.state.run) { store('save', this.state); } },
   loadSave() { const s = load('save'); if (s) { this.state = Object.assign(this.newState(), s); this.state.upgrades = s.upgrades || {}; return true; } return false; },
   saveMags(lv) { const p = lv.player; if (!p) return; for (const g of p.guns) this.state.mags[g.key] = g.mag; if (p.gun) this.state.lastGun = p.gun.key; },
   setScene(s) { if (this.scene && this.scene.exit) this.scene.exit(); this.scene = s; if (s.enter) s.enter(); },

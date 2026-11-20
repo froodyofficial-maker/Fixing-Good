@@ -196,7 +196,7 @@ class Actor {
     if (g && !g.melee && g.mag === 0 && !g.reload && this.roll <= 0 && g.cd <= 0 && (this.team !== 'player' || this.wantAutoReload)) g.startReload(this);
   }
   physics(dt, lv) {
-    const A = this.arch, sp = (A.speed || 260) * (this.crouching ? 0.45 : 1) * (this.burn > 0 && this.team === 'enemy' ? 1.3 : 1);
+    const A = this.arch, sp = (A.speed || 260) * (this.crouching ? 0.45 : 1) * (this.isPlayer() ? 1 + 0.1 * perk('fleet') : 1) * (this.burn > 0 && this.team === 'enemy' ? 1.3 : 1);
     if (this.roll > 0) { this.roll -= dt; this.vx = this.rollDir * 470; }
     else {
       const target = this.moveX * sp, acc = this.onGround ? 2600 : 1200;
@@ -319,7 +319,7 @@ class Actor {
     for (let i = 0; i < d.bullets; i++) {
       const a = baseA + rand(-1, 1) * d.spread * spreadMul;
       const spd = d.speed * (this.team === 'enemy' ? 0.62 : 1) * rand(0.95, 1.05);
-      lv.bullets.push({ x: S[0], y: S[1], sx: muzzle[0], sy: muzzle[1], vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, dmg: d.dmg * (this.team === 'enemy' ? (this.boss ? 0.42 : 0.4) * (d.bullets > 1 ? 0.6 : 1) : this.team === 'ally' ? 1.4 : 1) * (this.isPlayer() && Game.state.upgrades.hollow ? 1.2 : 1), team: this.team, owner: this, life: 0.9, pierce: d.pierce || 0, fire: fireRounds, knock: d.knock / d.bullets, travelled: 0, shotgun: d.bullets > 1, hitSet: new Set() });
+      lv.bullets.push({ x: S[0], y: S[1], sx: muzzle[0], sy: muzzle[1], vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, dmg: d.dmg * (this.team === 'enemy' ? (this.boss ? 0.42 : 0.4) * (d.bullets > 1 ? 0.6 : 1) : this.team === 'ally' ? 1.4 : 1) * (this.isPlayer() && Game.state.upgrades.hollow ? 1.2 : 1) * (this.isPlayer() ? 1 + 0.15 * perk('power') : 1), team: this.team, owner: this, life: 0.9, pierce: d.pierce || 0, fire: fireRounds, knock: d.knock / d.bullets, travelled: 0, shotgun: d.bullets > 1, hitSet: new Set() });
     }
     lv.fx.muzzle(muzzle[0], muzzle[1], this.gAng, d.bullets > 1 ? 1.5 : d.heavy ? 1.3 : 1, fireRounds);
     if (d.reloadType !== 'shell' && d.reloadType !== 'revolver') lv.fx.casing(this.L2W(d.eject[0], d.eject[1]), this.f);
@@ -441,7 +441,7 @@ class Actor {
     if (this.isPlayer() && Game.cheatGod) dmg = 0;
     if (this.isPlayer()) {
       if (this.iframes > 0) return false;
-      dmg *= Game.diffMul();
+      dmg *= Game.diffMul() * Math.pow(0.88, perk('tough'));
       if (o.kind === 'fire') dmg *= 0.5;
       if (o.kind === 'bullet') dmg = Math.min(dmg, 20); else if (o.kind === 'melee') dmg = Math.min(dmg, 22);
       // burst limiter: past ~35 damage in a short window, extra damage is mostly soaked (no instant shredding)

@@ -2,7 +2,7 @@
 
 > They fixed good. Then good fixed them.
 
-A side-scrolling desert crime action game. You play **Jace Pinkett**, a small-time dealer who partners up with **Walter Black**, a bald, bespectacled chemistry teacher with a lot to prove. Cook in a beat-up RV, sell on the street, gear up at the pawn shop, and shoot your way through eight story chapters of gangs, cartels and bikers.
+A side-scrolling desert crime action game. You play **Jace Pinkett**, a small-time dealer who partners up with **Walter Black**, a bald, bespectacled chemistry teacher with a lot to prove. Cook in a beat-up RV, sell on the street, gear up at the pawn shop, and shoot your way through seventeen story chapters of gangs, cartels and bikers. Then keep playing in **Blue Sky Run**, an endless roguelite mode.
 
 Everything is drawn and synthesized in code: every character, gun, explosion, sound effect and music note. There are no image or audio files.
 
@@ -11,6 +11,7 @@ Everything is drawn and synthesized in code: every character, gun, explosion, so
 | | How to play | What it is |
 |---|---|---|
 | **2D** | open `dist/fixing-good.html` | The original side-scroller |
+| **2D demo** | open `dist/fixing-good-demo.html` | The first three chapters and a three-night Blue Sky Run |
 | **3D** | open `3d/dist/fixing-good-3d.html` | A third-person shooter built on three.js: same story, characters, trading and cooking, all in 3D |
 
 Both are single self-contained files that run straight from disk. The sections below describe the 2D version; the 3D version is described in [3D version](#3d-version).
@@ -24,7 +25,7 @@ Progress saves automatically in the browser (localStorage).
 
 ## What's in it
 
-**Story:** 14 chapters with in-engine cutscenes, portrait dialogue, choices that change the epilogue, and two endings. It's a dark story: people around Jace die, and Walter is not a good man.
+**Story:** 17 chapters (about two and a half hours on a first playthrough) with in-engine cutscenes, portrait dialogue, choices and a post-credits scene. It's a dark story: people around Jace die, and Walter is not a good man. Whether he's really dead at the end is another question.
 
 | # | Chapter | What happens |
 |---|---|---|
@@ -33,15 +34,18 @@ Progress saves automatically in the browser (localStorage).
 | 3 | Corners | Take Southside from Spider's crew with Nico, a kid from the projects, and meet the mother of a boy who sold your blue |
 | 4 | Barrels | A night-time warehouse heist by flashlight, with takedowns and alarms |
 | 5 | Highway to Nowhere | Ride the roof of the RV and fight off biker gangs at highway speed |
-| 6 | Lena | Storm Spider's trap house for Lena, Jace's best friend since third grade, then the worst morning of his life |
+| 6 | Lena | Storm Spider's trap house for Lena, Jace's best friend since third grade, then the worst morning of his life, and her funeral |
 | 7 | The Twins | A motel ambush and two silent hitmen |
-| 8 | Golden Hen | A meeting with a chicken magnate, then defend Walter in the superlab |
-| 9 | Nico | Fenn sends a message. Hunt the killers; decide what happens to the one on his knees |
-| 10 | Rancho Muerte | Storm a cartel ranch and take down Don Esteban |
-| 11 | Checkmate | Kill Fenn and his enforcer, then hear what Walter really did the night Lena died |
-| 12 | Brewer | Walter's brother-in-law has found you, and Walter has invited the Dust Dogs |
-| 13 | Alone | No partner, no money: rebuild with your corners, then buy a crew |
-| 14 | Last Ride | Chase the Dust Dogs, storm the compound, and decide what to do with a dying Walter |
+| 8 | Morty | Someone torched your lawyer's strip mall. Fight El Gordo for him; Morty knows a guy who makes people disappear |
+| 9 | Golden Hen | A meeting with a chicken magnate, then defend Walter in the superlab |
+| 10 | Nico | Fenn sends a message. Hunt the killers; decide what happens to the one on his knees |
+| 11 | Rancho Muerte | Storm a cartel ranch and take down Don Esteban |
+| 12 | Thursday | Rob Fenn's armoured convoy from the roof of the RV |
+| 13 | Checkmate | Kill Fenn and his enforcer, then hear what Walter really did the night Lena died |
+| 14 | Brewer | Walter's brother-in-law has found you, and Walter has invited the Dust Dogs |
+| 15 | Alone | No partner, no money: rebuild with your corners, then buy a crew |
+| 16 | Chop Shop | Lead your hired guns through the Dust Dogs' chop shop and make Rook talk |
+| 17 | Last Ride | Chase the Dust Dogs, storm the compound, and decide what to do with a dying Walter |
 
 Later chapters ask for street results first: bags sold, reputation and cash. That's where the dealing comes in.
 
@@ -83,6 +87,15 @@ Later chapters ask for street results first: bags sold, reputation and cash. Tha
 - **Upgrades:** faster reloads, hollow points, more health, brass knuckles, a wider cooking sweet spot.
 - **Side jobs:** at The Dog House, generated bounty and turf-war missions that change every day, plus collection and turf-defence jobs from your street business.
 
+**Blue Sky Run (replayable mode):** an endless roguelite from the main menu, separate from your story save.
+- Each night, pick one of three generated contracts: turf wars, bounties, hold-the-stash wave defence, or convoy runs on the RV roof.
+- Contracts roll modifiers (Blackout, Bloodbath, Tough Crowd, Pincer, Powder Keg, Payday, Walter Rides Along) that raise the risk and the pay.
+- Every fourth night is a boss night: Spider, Rafa, the Cortez twins, El Gordo, Gideon, Don Esteban, Rook, Fenn or Uncle Dutch.
+- Between nights, pick one of three perks (Thick Skin, Hot Loads, Bloodlust, Volatile, Marksman, Dragon's Breath, new guns and more), reroll for cash, and restock at Dusty's van.
+- One life, no checkpoints. Your score is based on nights, kills, headshots and cash. The **Daily Run** gives everyone the same seed for the day.
+
+**Demo:** `dist/fixing-good-demo.html` has the first three chapters, the dealing districts they unlock, and a three-night Blue Sky Run. It saves separately from the full game.
+
 **Presentation:** a loading screen, title menu, settings (volume, music, screen shake, gore level, difficulty), pause menu, checkpoints, a game-over/retry screen, and mission results.
 
 ## Controls
@@ -119,12 +132,14 @@ js/actors.js      player/enemy/ally logic, AI, melee, ragdolls with dismembermen
 js/level.js       level runtime: physics world, bullets, explosions, fire, scripting, HUD, dialogue
 js/highway.js     the RV-roof highway chase mode and enemy vehicles
 js/story.js       the original chapters, levels, cutscenes and dialogue
-js/story2.js      the expanded story: new chapters, choices, endings, epilogue
+js/story2.js      the expanded story: new chapters, choices, endings
 js/dealing.js     districts, buyers, negotiation, cutting, fronts, corner dealers, daily simulation
 js/scenes.js      loading, menu, hub map, shops, trading, cooking, missions, ending
+js/story3.js      the funeral, Morty, Thursday, Chop Shop, the ending and the post-credits scene
 js/jobs.js        generated side jobs
+js/run.js         Blue Sky Run (roguelite mode) and the demo's end screen
 js/main.js        game state, save/load, main loop
-build.mjs         bundles everything into dist/fixing-good.html
+build.mjs         bundles everything into dist/fixing-good.html and dist/fixing-good-demo.html
 check.mjs         syntax-checks every script
 ```
 

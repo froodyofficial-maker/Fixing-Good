@@ -99,8 +99,8 @@ canvas.addEventListener('wheel', e => { Input.wheel += Math.sign(e.deltaY); e.pr
 
 // ---------- settings + save ----------
 const Settings = { volume: 0.8, music: 0.5, shake: 1, gore: 2, dialogue: 'show' }; // gore: 0 off, 1 low, 2 full
-function store(k, v) { try { localStorage.setItem('fixinggood.' + k, JSON.stringify(v)); } catch (e) { } }
-function load(k) { try { const v = localStorage.getItem('fixinggood.' + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function store(k, v) { try { localStorage.setItem((DEMO ? 'fixinggood.demo.' : 'fixinggood.') + k, JSON.stringify(v)); } catch (e) { } }
+function load(k) { try { const v = localStorage.getItem((DEMO ? 'fixinggood.demo.' : 'fixinggood.') + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 Object.assign(Settings, load('settings') || {});
 
 // ---------- audio (all synthesized) ----------
@@ -219,3 +219,6 @@ const Audio = {
     }
   }
 };
+function perk(k) { const s = typeof Game !== 'undefined' && Game.state; return (s && s.perks && s.perks[k]) || 0; }
+// the demo build sets window.FG_DEMO before the game scripts run
+const DEMO = typeof window !== 'undefined' && !!window.FG_DEMO;
